@@ -281,6 +281,22 @@ textarea.form-input { resize: vertical; min-height: 60px; text-align: left; }
     </div>
     <div class="param-reset" onclick="resetGlobalParams()">Réinitialiser aux valeurs par défaut</div>
   </div>
+  <div class="form-section" style="margin-top:8px">
+    <div class="form-section-title">Sauvegarde & restauration</div>
+    <div style="padding:10px 16px 4px; font-size:11px; color:var(--text3); line-height:1.5">Exportez vos randonnées dans un fichier pour les sauvegarder ou les transférer sur un autre appareil.</div>
+    <div class="form-row" style="gap:8px">
+      <button class="btn primary" onclick="exportData()" style="flex:1">
+        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Exporter
+      </button>
+      <button class="btn" onclick="document.getElementById('import-input').click()" style="flex:1">
+        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Importer
+      </button>
+      <input type="file" id="import-input" accept=".json" style="display:none" onchange="importData(event)">
+    </div>
+    <div id="import-status" style="padding:0 16px 10px; font-size:11px; color:var(--green); display:none"></div>
+  </div>
   <div class="form-section" id="rando-params-section">
     <div class="form-section-title">Vitesses de la randonnée active</div>
     <div id="rando-params-name" style="padding:8px 16px; font-size:11px; color:var(--text3); font-style:italic"></div>
@@ -876,6 +892,51 @@ function resetGlobalParams() {
   state.globalParams = { vplat: 4.2, vdplus: 400, vdminus: 600 };
   save();
   renderParams();
+}
+
+function exportData() {
+  var data = { randos: state.randos, globalParams: state.globalParams, exportDate: new Date().toISOString() };
+  var json = JSON.stringify(data, null, 2);
+  var blob = new Blob([json], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  var d = new Date();
+  var dateStr = d.getFullYear() + '-' + fmt2(d.getMonth()+1) + '-' + fmt2(d.getDate());
+  a.href = url;
+  a.download = 'randonnees-' + dateStr + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var data = JSON.parse(e.target.result);
+      if (!data.randos) throw new Error('Format invalide');
+      if (!confirm('Importer ' + data.randos.length + ' randonnée(s) ? Les données existantes seront fusionnées (pas effacées).')) return;
+      var existingIds = state.randos.map(function(r){ return r.id; });
+      var added = 0;
+      data.randos.forEach(function(r) {
+        if (!existingIds.includes(r.id)) { state.randos.push(r); added++; }
+      });
+      if (data.globalParams) state.globalParams = data.globalParams;
+      save();
+      renderParams();
+      renderRandoList();
+      renderMarche();
+      var status = document.getElementById('import-status');
+      status.textContent = added + ' randonnée(s) importée(s) avec succès.';
+      status.style.display = 'block';
+      setTimeout(function(){ status.style.display = 'none'; }, 4000);
+    } catch(err) {
+      alert('Fichier invalide. Assurez-vous d\'utiliser un fichier exporté depuis cette app.');
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
 }
 
 function openModal(id) { document.getElementById(id).classList.add('open'); }
