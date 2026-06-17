@@ -128,8 +128,8 @@ textarea.form-input { resize: vertical; min-height: 60px; text-align: left; }
 .add-point-btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 /* Toast */
 .toast-wrap { position: fixed; left: 0; right: 0; bottom: 76px; display: flex; justify-content: center; z-index: 400; pointer-events: none; padding: 0 16px; }
-.toast { background: var(--green-dark); color: #fff; padding: 12px 16px; border-radius: var(--radius); max-width: 420px; width: 100%; box-shadow: 0 4px 16px rgba(0,0,0,0.25); opacity: 0; transform: translateY(12px); transition: opacity 0.2s, transform 0.2s; pointer-events: auto; }
-.toast.show { opacity: 1; transform: translateY(0); }
+.toast { background: var(--green-dark); color: #fff; padding: 12px 16px; border-radius: var(--radius); max-width: 420px; width: 100%; box-shadow: 0 4px 16px rgba(0,0,0,0.25); opacity: 0; transform: translateY(12px); transition: opacity 0.2s, transform 0.2s; pointer-events: none; }
+.toast.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
 .toast.error { background: #6e1717; }
 .toast .toast-head { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.7; margin-bottom: 3px; }
 .toast .toast-msg { font-size: 13px; line-height: 1.4; }
@@ -164,8 +164,8 @@ textarea.form-input { resize: vertical; min-height: 60px; text-align: left; }
           <tr>
             <th class="cell-water"></th>
             <th style="text-align:left">Point</th>
-            <th>H. min</th>
-            <th>H. max</th>
+            <th>Tronçon<br>km</th>
+            <th>HMin/HMax</th>
             <th>D+ / D−</th>
           </tr>
         </thead>
@@ -505,15 +505,15 @@ function buildCumulative(rando) {
   var anyDminus = false;
   for (var i = 0; i < pts.length; i++) {
     var p = pts[i];
-    if (p.type === 'pause') { out.push(p); continue; }
+    if (p.type === 'pause') { out.push({ type:'pause', nom:p.nom, duree:p.duree, comment:p.comment, _storeIdx:i }); continue; }
     if (rando.saisieMode === 'troncon') {
       cumDist += (p.dist || 0);
       cumDplus += (p.dplus || 0);
       var segDm = (p.dminus !== null && p.dminus !== undefined && p.dminus !== '') ? (p.dminus || 0) : null;
       if (segDm !== null) { cumDminus += segDm; anyDminus = true; }
-      out.push({ nom: p.nom, alt: p.alt, dist: cumDist, dplus: cumDplus, dminus: (segDm !== null ? cumDminus : null), water: p.water, azimut: p.azimut, comment: p.comment });
+      out.push({ nom: p.nom, alt: p.alt, dist: cumDist, dplus: cumDplus, dminus: (segDm !== null ? cumDminus : null), water: p.water, azimut: p.azimut, comment: p.comment, _storeIdx: i });
     } else {
-      out.push({ nom: p.nom, alt: p.alt, dist: p.dist, dplus: p.dplus, dminus: p.dminus, water: p.water, azimut: p.azimut, comment: p.comment });
+      out.push({ nom: p.nom, alt: p.alt, dist: p.dist, dplus: p.dplus, dminus: p.dminus, water: p.water, azimut: p.azimut, comment: p.comment, _storeIdx: i });
     }
   }
   return out;
@@ -532,7 +532,7 @@ function calcMarche(seq, heureDepart, params, dminusTotal) {
     var p = seq[i];
     if (p.type === 'pause') {
       pauseAccum += (p.duree || 0) / 60;
-      results.push({ isPause: true, nom: p.nom, duree: p.duree, comment: p.comment });
+      results.push({ isPause: true, nom: p.nom, duree: p.duree, comment: p.comment, _storeIdx: p._storeIdx });
       continue;
     }
     if (prevReal === null) {
@@ -551,7 +551,7 @@ function calcMarche(seq, heureDepart, params, dminusTotal) {
     var sup = dkm > 0 ? ddplus / (dkm * 1000) * 100 : 0;
     var sdown = dkm > 0 ? ddminus / (dkm * 1000) * 100 : 0;
     tCumul += t; tCumulMax += t * 1.15;
-    results.push({ isPause: false, ref: p, hmin: heureDepart + tCumul + pauseAccum, hmax: heureDepart + tCumulMax + pauseAccum, tSeg: t, tSegMax: t*1.15, tCumul: tCumul, tCumulMax: tCumulMax, ddplus: ddplus, ddminus: ddminus, sup: sup, sdown: sdown });
+    results.push({ isPause: false, ref: p, hmin: heureDepart + tCumul + pauseAccum, hmax: heureDepart + tCumulMax + pauseAccum, tSeg: t, tSegMax: t*1.15, tCumul: tCumul, tCumulMax: tCumulMax, ddplus: ddplus, ddminus: ddminus, dkm: dkm, sup: sup, sdown: sdown });
     prevReal = p;
   }
   return results;
@@ -596,11 +596,11 @@ function renderMarche() {
   for (var i = 0; i < calcs.length; i++) {
     var c = calcs[i];
     if (c.isPause) {
-      html += '<tr class="pause-point" onclick="openDetailPause(' + findPauseStoreIdx(rando, i, seq) + ')">';
+      html += '<tr class="pause-point" onclick="openDetailPause(' + c._storeIdx + ')">';
       html += '<td class="cell-water"><svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:middle"><rect x="6" y="4" width="4" height="16" rx="1" fill="#BA7517"/><rect x="14" y="4" width="4" height="16" rx="1" fill="#BA7517"/></svg></td>';
       html += '<td><div class="cell-name" style="color:#633806">' + escHtml(c.nom||'Pause') + '</div><div class="cell-sub" style="color:#854F0B">Pause · ' + (c.duree||0) + ' min</div></td>';
-      html += '<td class="cell-hmin" style="color:var(--text3)">—</td>';
-      html += '<td class="cell-hmax" style="color:var(--text3)">—</td>';
+      html += '<td class="cell-dval" style="color:var(--text3)">—</td>';
+      html += '<td class="cell-dval" style="color:var(--text3)">—</td>';
       html += '<td class="cell-dval" style="color:var(--text3)">—</td>';
       html += '</tr>';
       continue;
@@ -612,11 +612,13 @@ function renderMarche() {
     var dp = '<span style="color:var(--green-dark); font-size:11px">+' + Math.round(c.ddplus) + '</span><br><span style="color:var(--text3); font-size:10px">−' + Math.round(c.ddminus) + '</span>';
     var sub = (p.dist||0).toFixed(1) + ' km · ▲ ' + (p.alt||0) + ' m';
     if (!isD && p.azimut !== null && p.azimut !== undefined && p.azimut !== '') sub += ' · 🧭 ' + p.azimut + '°';
-    html += '<tr class="' + rc + '"' + (!isD ? ' onclick="openDetail(' + findRealStoreIdx(rando, p) + ')"' : '') + '>';
+    html += '<tr class="' + rc + '"' + (!isD ? ' onclick="openDetail(' + p._storeIdx + ')"' : '') + '>';
     html += '<td class="cell-water">' + wc + '</td>';
     html += '<td><div class="cell-name">' + escHtml(p.nom||'—') + '</div><div class="cell-sub">' + sub + '</div></td>';
-    html += '<td class="cell-hmin">' + fmtTime(c.hmin) + '</td>';
-    html += '<td class="cell-hmax">' + fmtTime(c.hmax) + '</td>';
+    var tronCell = isD ? '—' : (c.dkm||0).toFixed(1);
+    html += '<td class="cell-dval">' + tronCell + '</td>';
+    var hours = '<span style="color:var(--green); font-weight:bold; font-size:12px">' + fmtTime(c.hmin) + '</span><br><span style="color:var(--amber); font-size:11px">' + fmtTime(c.hmax) + '</span>';
+    html += '<td style="text-align:center; white-space:nowrap">' + hours + '</td>';
     html += '<td class="cell-dval">' + dp + '</td>';
     html += '</tr>';
   }
@@ -635,26 +637,12 @@ function renderMarche() {
 
 // Map a cumulative real point back to its index in rando.points (by identity of order)
 function findRealStoreIdx(rando, cumPoint) {
-  var pts = rando.points || [];
-  var realCount = -1;
-  for (var i = 0; i < pts.length; i++) {
-    if (pts[i].type === 'pause') continue;
-    realCount++;
-    if (realCount === cumPoint._realIdx) return i;
-  }
-  // fallback: match by name+alt
-  for (var j = 0; j < pts.length; j++) { if (pts[j].type !== 'pause' && pts[j].nom === cumPoint.nom) return j; }
-  return 0;
+  return (cumPoint && cumPoint._storeIdx !== undefined) ? cumPoint._storeIdx : 0;
 }
 
 function findPauseStoreIdx(rando, calcIdx, seq) {
-  // seq[calcIdx] is the pause (note seq has startPt prepended, so offset by 1)
   var seqItem = seq[calcIdx];
-  var pts = rando.points || [];
-  for (var i = 0; i < pts.length; i++) {
-    if (pts[i].type === 'pause' && pts[i].nom === seqItem.nom && pts[i].duree === seqItem.duree) return i;
-  }
-  return 0;
+  return (seqItem && seqItem._storeIdx !== undefined) ? seqItem._storeIdx : 0;
 }
 
 function openDetail(storeIdx) {
@@ -670,14 +658,11 @@ function openDetail(storeIdx) {
   var startPt = { nom: rando.depart||'Départ', dist: 0, alt: rando.altDepart||0, dplus: 0, dminus: 0 };
   var seq = [startPt].concat(cumPts);
   var calcs = calcMarche(seq, heureDepart, params, hasDm ? null : (rando.dminusTotal||null));
-  // find calc entry matching this store point by counting real points
-  var realIdxTarget = 0, cnt = -1;
-  for (var k = 0; k < pts.length; k++) { if (pts[k].type !== 'pause') { cnt++; if (k === storeIdx) { realIdxTarget = cnt; break; } } }
-  var seenReal = -1, c = null, pcum = null;
+  // find calc entry matching this exact store index
+  var c = null, pcum = null;
   for (var i = 1; i < calcs.length; i++) {
     if (calcs[i].isPause) continue;
-    seenReal++;
-    if (seenReal === realIdxTarget) { c = calcs[i]; pcum = calcs[i].ref; break; }
+    if (calcs[i].ref && calcs[i].ref._storeIdx === storeIdx) { c = calcs[i]; pcum = calcs[i].ref; break; }
   }
   if (!c) return;
   document.getElementById('detail-name').textContent = p.nom || '—';
@@ -706,10 +691,61 @@ function openDetailPause(storeIdx) {
   state.detailPointIdx = storeIdx;
   document.getElementById('detail-name').textContent = p.nom || 'Pause';
   document.getElementById('detail-alt').textContent = 'Pause · ' + (p.duree||0) + ' minutes';
-  document.getElementById('detail-grid').innerHTML = '<div class="detail-card amber"><div class="label">Durée</div><div class="val">' + (p.duree||0) + ' min</div></div>';
+  var canUp = canMovePause(rando, storeIdx, -1);
+  var canDown = canMovePause(rando, storeIdx, 1);
+  var moveHtml = '<div class="detail-card amber"><div class="label">Durée</div><div class="val">' + (p.duree||0) + ' min</div></div>'
+    + '<div class="detail-card"><div class="label">Déplacer la pause</div><div style="display:flex; gap:8px; margin-top:6px">'
+    + '<button class="btn" ' + (canUp?'':'disabled') + ' onclick="movePause(-1)" style="flex:1; justify-content:center; ' + (canUp?'':'opacity:0.4') + '"><svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><polyline points="18 15 12 9 6 15"/></svg></button>'
+    + '<button class="btn" ' + (canDown?'':'disabled') + ' onclick="movePause(1)" style="flex:1; justify-content:center; ' + (canDown?'':'opacity:0.4') + '"><svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><polyline points="6 9 12 15 18 9"/></svg></button>'
+    + '</div></div>';
+  document.getElementById('detail-grid').innerHTML = moveHtml;
   document.getElementById('detail-comment-box').innerHTML = p.comment ? '<div class="comment-box"><div class="label">Commentaire</div><div class="text">' + escHtml(p.comment) + '</div></div>' : '';
   document.getElementById('marche-main').style.display = 'none';
   document.getElementById('detail-panel').classList.add('active');
+}
+
+// Check if a pause at storeIdx can move by dir (-1 up, +1 down) while keeping
+// at least one real POI between départ and the pause, and at least one real POI after.
+function canMovePause(rando, storeIdx, dir) {
+  var pts = rando.points || [];
+  var target = storeIdx + dir;
+  if (target < 0 || target >= pts.length) return false;
+  // Simulate the swap and validate constraints
+  var sim = pts.slice();
+  var tmp = sim[storeIdx]; sim[storeIdx] = sim[target]; sim[target] = tmp;
+  return pauseArrangementValid(sim);
+}
+
+// Validate: first element before any pause must include >=1 real POI,
+// and there must be >=1 real POI after the last pause.
+function pauseArrangementValid(pts) {
+  var firstReal = -1, lastReal = -1, firstPause = -1, lastPause = -1;
+  for (var i = 0; i < pts.length; i++) {
+    var isPause = pts[i].type === 'pause';
+    if (isPause) { if (firstPause === -1) firstPause = i; lastPause = i; }
+    else { if (firstReal === -1) firstReal = i; lastReal = i; }
+  }
+  if (firstPause === -1) return true; // no pauses
+  if (firstReal === -1) return false; // pauses but no real POI
+  if (firstPause < firstReal) return false; // a pause before the first real POI
+  if (lastPause > lastReal) return false; // a pause after the last real POI
+  return true;
+}
+
+function movePause(dir) {
+  var rando = getActiveRando(); if (!rando) return;
+  var storeIdx = state.detailPointIdx;
+  var pts = rando.points || [];
+  var target = storeIdx + dir;
+  if (target < 0 || target >= pts.length) return;
+  var sim = pts.slice();
+  var tmp = sim[storeIdx]; sim[storeIdx] = sim[target]; sim[target] = tmp;
+  if (!pauseArrangementValid(sim)) return;
+  rando.points = sim;
+  state.detailPointIdx = target;
+  save();
+  renderMarche();
+  openDetailPause(target);
 }
 
 function closeDetail() { document.getElementById('marche-main').style.display = ''; document.getElementById('detail-panel').classList.remove('active'); }
