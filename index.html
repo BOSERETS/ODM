@@ -40,6 +40,7 @@ body { font-family: 'Georgia', serif; background: var(--bg); color: var(--text);
 .march-table tr:last-child td { border-bottom: none; }
 .march-table tr.depart td { background: var(--surface2); color: var(--text2); }
 .march-table tr.water-point { background: #f0f7ff; }
+.march-table tr.pause-point { background: #FAEEDA; }
 .march-table tr:not(.depart):hover { background: var(--surface2); cursor: pointer; }
 .cell-water { width: 18px; text-align: center; padding: 8px 2px 8px 8px !important; }
 .cell-name { font-size: 12px; color: var(--text); }
@@ -93,6 +94,11 @@ body { font-family: 'Georgia', serif; background: var(--bg); color: var(--text);
 .form-input.med { width: 90px; }
 .form-input.sm { width: 70px; }
 textarea.form-input { resize: vertical; min-height: 60px; text-align: left; }
+.mode-toggle { display: flex; gap: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.mode-toggle button { flex: 1; padding: 8px 6px; border: none; background: var(--surface); color: var(--text2); font-size: 12px; font-family: inherit; cursor: pointer; }
+.mode-toggle button.active { background: var(--green-dark); color: #fff; }
+.mode-toggle button:disabled { opacity: 0.4; cursor: not-allowed; }
+.mode-locked-note { font-size: 10px; color: var(--amber); padding: 4px 16px 0; font-style: italic; }
 .toggle-row { display: flex; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border); gap: 10px; }
 .toggle-label { flex: 1; font-size: 12px; color: var(--text); }
 .toggle { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
@@ -116,7 +122,9 @@ textarea.form-input { resize: vertical; min-height: 60px; text-align: left; }
 .empty-state svg { width: 48px; height: 48px; stroke: var(--text3); fill: none; stroke-width: 1; stroke-linecap: round; stroke-linejoin: round; }
 .empty-state p { font-size: 14px; color: var(--text3); line-height: 1.6; }
 .no-points { padding: 24px 16px; text-align: center; color: var(--text3); font-size: 13px; font-style: italic; }
-.add-point-btn { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 10px 16px; padding: 10px; border: 1.5px dashed var(--green); border-radius: var(--radius); background: none; color: var(--green); font-size: 13px; cursor: pointer; font-family: inherit; width: calc(100% - 32px); }
+.add-point-btns { display: flex; gap: 8px; margin: 10px 16px; }
+.add-point-btn { display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1; padding: 10px; border: 1.5px dashed var(--green); border-radius: var(--radius); background: none; color: var(--green); font-size: 13px; cursor: pointer; font-family: inherit; }
+.add-point-btn.pause { border-color: var(--amber); color: var(--amber); }
 .add-point-btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 </style>
 </head>
@@ -165,10 +173,16 @@ textarea.form-input { resize: vertical; min-height: 60px; text-align: left; }
       <div class="stat-card"><div class="stat-label">D+ total</div><div class="stat-value" id="sum-dplus">—</div><span class="stat-unit">m</span></div>
       <div class="stat-card"><div class="stat-label">D− total</div><div class="stat-value" id="sum-dminus">—</div><span class="stat-unit">m</span></div>
     </div>
-    <button class="add-point-btn" onclick="openAddPoint()">
-      <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Ajouter un point de passage
-    </button>
+    <div class="add-point-btns">
+      <button class="add-point-btn" onclick="openAddPoint()">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Point
+      </button>
+      <button class="add-point-btn pause" onclick="openAddPause()">
+        <svg viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none"/></svg>
+        Pause
+      </button>
+    </div>
   </div>
   <div class="detail-panel" id="detail-panel">
     <div class="detail-back" onclick="closeDetail()">
@@ -293,7 +307,25 @@ textarea.form-input { resize: vertical; min-height: 60px; text-align: left; }
         <input class="form-input" type="time" id="f-heure" value="08:00">
       </div>
       <div class="form-row">
-        <div class="form-label">Vitesse plat<small>km/h — par défaut paramètres</small></div>
+        <div class="form-label">▲ Altitude de départ<small>m · informatif</small></div>
+        <input class="form-input med" type="number" id="f-altdepart" placeholder="0" step="1">
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">Mode de saisie des points</div>
+      <div style="padding:10px 16px">
+        <div class="mode-toggle">
+          <button type="button" id="mode-cumule" onclick="setSaisieMode('cumule')">Cumulé</button>
+          <button type="button" id="mode-troncon" onclick="setSaisieMode('troncon')">Tronçon</button>
+        </div>
+        <div id="mode-locked" class="mode-locked-note" style="display:none">Mode verrouillé : des points existent déjà.</div>
+        <div style="font-size:10px; color:var(--text3); margin-top:6px; line-height:1.4">Cumulé = valeurs depuis le départ (appli de traçage). Tronçon = valeurs par segment (mesure sur carte).</div>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">Vitesses</div>
+      <div class="form-row">
+        <div class="form-label">Vitesse plat<small>km/h — défaut paramètres</small></div>
         <input class="form-input sm" type="number" id="f-vplat" step="0.1" min="0.5" max="20">
       </div>
       <div class="form-row">
@@ -329,20 +361,24 @@ textarea.form-input { resize: vertical; min-height: 60px; text-align: left; }
         <input class="form-input wide" type="text" id="pt-nom" placeholder="ex: Col du Botrange" style="flex:2">
       </div>
       <div class="form-row">
-        <div class="form-label">Distance cumulée<small>km depuis le départ</small></div>
+        <div class="form-label" id="lbl-dist">Distance cumulée<small>km depuis le départ</small></div>
         <input class="form-input med" type="number" id="pt-dist" placeholder="0.0" step="0.1" min="0">
       </div>
       <div class="form-row">
-        <div class="form-label">▲ Altitude<small>m du point</small></div>
+        <div class="form-label">▲ Altitude<small>m du point (absolue)</small></div>
         <input class="form-input med" type="number" id="pt-alt" placeholder="0" step="1">
       </div>
       <div class="form-row">
-        <div class="form-label">Cumul D+<small>m depuis le départ</small></div>
+        <div class="form-label" id="lbl-dplus">Cumul D+<small>m depuis le départ</small></div>
         <input class="form-input med" type="number" id="pt-dplus" placeholder="0" step="1" min="0">
       </div>
       <div class="form-row">
-        <div class="form-label">Cumul D−<small>m · optionnel</small></div>
+        <div class="form-label" id="lbl-dminus">Cumul D−<small>m · optionnel</small></div>
         <input class="form-input med" type="number" id="pt-dminus" placeholder="—" step="1" min="0">
+      </div>
+      <div class="form-row">
+        <div class="form-label">🧭 Azimut to<small>cap 0-360° vers le suivant</small></div>
+        <input class="form-input med" type="number" id="pt-azimut" placeholder="—" step="1" min="0" max="360">
       </div>
       <div class="toggle-row">
         <div class="toggle-label">Point d'eau 💧</div>
@@ -363,11 +399,40 @@ textarea.form-input { resize: vertical; min-height: 60px; text-align: left; }
   </div>
 </div>
 
+<!-- MODAL PAUSE -->
+<div class="modal-overlay" id="modal-pause">
+  <div class="modal">
+    <div class="modal-title">
+      <span id="modal-pause-title">Nouvelle pause</span>
+      <button class="modal-close" onclick="closeModal('modal-pause')">×</button>
+    </div>
+    <div class="form-section" style="margin-top:0">
+      <div class="form-row">
+        <div class="form-label">Nom de la pause</div>
+        <input class="form-input wide" type="text" id="pause-nom" placeholder="ex: Pause déjeuner" style="flex:2">
+      </div>
+      <div class="form-row">
+        <div class="form-label">Durée<small>minutes</small></div>
+        <input class="form-input med" type="number" id="pause-duree" placeholder="30" step="5" min="0">
+      </div>
+      <div class="form-row">
+        <div class="form-label">Commentaire</div>
+        <textarea class="form-input wide" id="pause-comment" placeholder="Info utile..." rows="2" style="flex:2"></textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn primary" onclick="savePause()" style="flex:1">Enregistrer</button>
+      <button class="btn" onclick="closeModal('modal-pause')" style="flex:1">Annuler</button>
+    </div>
+  </div>
+</div>
+
 <script>
 var state = {
   randos: [], activeRandoId: null,
   globalParams: { vplat: 4.2, vdplus: 400, vdminus: 600 },
-  editingRandoId: null, editingPointIdx: null, detailPointIdx: null
+  editingRandoId: null, editingPointIdx: null, detailPointIdx: null,
+  formSaisieMode: 'cumule'
 };
 
 function load() {
@@ -378,7 +443,6 @@ function load() {
       state.randos = p.randos || [];
       state.activeRandoId = p.activeRandoId || null;
       state.globalParams = p.globalParams || { vplat: 4.2, vdplus: 400, vdminus: 600 };
-      // Migration: anciens formats avec days -> points directs
       state.randos.forEach(function(r) {
         if (r.days && !r.points) {
           r.points = (r.days[0] && r.days[0].points) ? r.days[0].points : [];
@@ -388,6 +452,8 @@ function load() {
         }
         if (!r.points) r.points = [];
         if (!r.heure) r.heure = '08:00';
+        if (!r.saisieMode) r.saisieMode = 'cumule';
+        if (r.altDepart === undefined) r.altDepart = 0;
         if (!r.params) r.params = { vplat: state.globalParams.vplat, vdplus: state.globalParams.vdplus, vdminus: state.globalParams.vdminus };
       });
     }
@@ -415,26 +481,70 @@ function fmtHm(h) {
 }
 function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-function calcMarche(points, heureDepart, params, dminusTotal) {
-  var results = [], tCumul = 0, tCumulMax = 0;
-  var totalDist = points.length > 0 ? points[points.length-1].dist : 0;
-  for (var i = 0; i < points.length; i++) {
-    if (i === 0) { results.push({ hmin: heureDepart, hmax: heureDepart, tSeg: 0, tSegMax: 0, tCumul: 0, tCumulMax: 0, ddplus: 0, ddminus: 0, sup: 0, sdown: 0 }); continue; }
-    var p1 = points[i-1], p2 = points[i];
-    var dkm = p2.dist - p1.dist;
-    var ddplus = (p2.dplus||0) - (p1.dplus||0);
-    var hasDm = p2.dminus !== null && p2.dminus !== undefined && p2.dminus !== '';
+// Convert stored points (which may be troncon-mode) into cumulative absolute points for calc.
+// In troncon mode: pt.dist/dplus/dminus are SEGMENT values. We build cumulative on the fly.
+// Pause points (type:'pause') are passed through and excluded from distance math.
+function buildCumulative(rando) {
+  var pts = rando.points || [];
+  var out = [];
+  var cumDist = 0, cumDplus = 0, cumDminus = 0;
+  var anyDminus = false;
+  for (var i = 0; i < pts.length; i++) {
+    var p = pts[i];
+    if (p.type === 'pause') { out.push(p); continue; }
+    if (rando.saisieMode === 'troncon') {
+      cumDist += (p.dist || 0);
+      cumDplus += (p.dplus || 0);
+      var segDm = (p.dminus !== null && p.dminus !== undefined && p.dminus !== '') ? (p.dminus || 0) : null;
+      if (segDm !== null) { cumDminus += segDm; anyDminus = true; }
+      out.push({ nom: p.nom, alt: p.alt, dist: cumDist, dplus: cumDplus, dminus: (segDm !== null ? cumDminus : null), water: p.water, azimut: p.azimut, comment: p.comment });
+    } else {
+      out.push({ nom: p.nom, alt: p.alt, dist: p.dist, dplus: p.dplus, dminus: p.dminus, water: p.water, azimut: p.azimut, comment: p.comment });
+    }
+  }
+  return out;
+}
+
+// Compute marche over a sequence that includes pause rows.
+// Real (non-pause) points carry cumulative dist/dplus/dminus.
+function calcMarche(seq, heureDepart, params, dminusTotal) {
+  var results = [];
+  var tCumul = 0, tCumulMax = 0;
+  var pauseAccum = 0;
+  var realPts = seq.filter(function(p){ return p.type !== 'pause'; });
+  var totalDist = realPts.length > 0 ? realPts[realPts.length-1].dist : 0;
+  var prevReal = null;
+  for (var i = 0; i < seq.length; i++) {
+    var p = seq[i];
+    if (p.type === 'pause') {
+      pauseAccum += (p.duree || 0) / 60;
+      results.push({ isPause: true, nom: p.nom, duree: p.duree, comment: p.comment });
+      continue;
+    }
+    if (prevReal === null) {
+      results.push({ isPause: false, ref: p, hmin: heureDepart, hmax: heureDepart, tSeg: 0, tSegMax: 0, tCumul: 0, tCumulMax: 0, ddplus: 0, ddminus: 0, sup: 0, sdown: 0 });
+      prevReal = p;
+      continue;
+    }
+    var dkm = p.dist - prevReal.dist;
+    var ddplus = (p.dplus||0) - (prevReal.dplus||0);
+    var hasDm = p.dminus !== null && p.dminus !== undefined && p.dminus !== '';
     var useDmTotal = !hasDm && dminusTotal && dminusTotal > 0 && totalDist > 0;
     var ddminus = 0;
-    if (hasDm) ddminus = Math.max(0, (p2.dminus||0) - (p1.dminus||0));
+    if (hasDm) ddminus = Math.max(0, (p.dminus||0) - (prevReal.dminus||0));
     else if (useDmTotal) ddminus = dkm / totalDist * dminusTotal;
     var t = (dkm / params.vplat) + (ddplus / params.vdplus) + (ddminus / params.vdminus);
     var sup = dkm > 0 ? ddplus / (dkm * 1000) * 100 : 0;
     var sdown = dkm > 0 ? ddminus / (dkm * 1000) * 100 : 0;
-    tCumul += t; tCumulMax += t * 1.20;
-    results.push({ hmin: heureDepart + tCumul, hmax: heureDepart + tCumulMax, tSeg: t, tSegMax: t*1.20, tCumul: tCumul, tCumulMax: tCumulMax, ddplus: ddplus, ddminus: ddminus, sup: sup, sdown: sdown });
+    tCumul += t; tCumulMax += t * 1.15;
+    results.push({ isPause: false, ref: p, hmin: heureDepart + tCumul + pauseAccum, hmax: heureDepart + tCumulMax + pauseAccum, tSeg: t, tSegMax: t*1.15, tCumul: tCumul, tCumulMax: tCumulMax, ddplus: ddplus, ddminus: ddminus, sup: sup, sdown: sdown });
+    prevReal = p;
   }
   return results;
+}
+
+function hasDminusData(cumPts) {
+  return cumPts.some(function(p){ return p.type !== 'pause' && p.dminus !== null && p.dminus !== undefined && p.dminus !== ''; });
 }
 
 function renderMarche() {
@@ -452,29 +562,43 @@ function renderMarche() {
   titleEl.textContent = rando.nom || 'Sans nom';
   var arrivee = rando.arrivee || rando.depart || '';
   subEl.textContent = 'Départ ' + (rando.heure||'08:00').replace(':','h') + ' · ' + (rando.depart||'—') + (arrivee && arrivee !== rando.depart ? ' → ' + arrivee : '');
-  var points = rando.points || [];
   var hp = (rando.heure||'08:00').split(':');
   var heureDepart = parseInt(hp[0]) + parseInt(hp[1])/60;
   var params = getParams(rando);
+  var cumPts = buildCumulative(rando);
+  var hasDm = hasDminusData(cumPts);
   var dminusTotal = rando.dminusTotal || null;
-  var hasDm = points.some(function(p){ return p.dminus !== null && p.dminus !== undefined && p.dminus !== ''; });
   if (!hasDm) {
     document.getElementById('dminus-total-section').style.display = 'block';
     document.getElementById('dminus-total-input').value = dminusTotal || '';
   } else {
     document.getElementById('dminus-total-section').style.display = 'none';
   }
-  var startPt = { nom: rando.depart||'Départ', dist: 0, alt: points.length > 0 ? (points[0].alt||0) : 0, dplus: 0, dminus: 0 };
-  var allPts = [startPt].concat(points);
-  var calcs = calcMarche(allPts, heureDepart, params, hasDm ? null : dminusTotal);
+  var realPts = cumPts.filter(function(p){ return p.type !== 'pause'; });
+  var startPt = { nom: rando.depart||'Départ', dist: 0, alt: rando.altDepart||0, dplus: 0, dminus: 0 };
+  var seq = [startPt].concat(cumPts);
+  var calcs = calcMarche(seq, heureDepart, params, hasDm ? null : dminusTotal);
   var html = '';
-  for (var i = 0; i < allPts.length; i++) {
-    var p = allPts[i], c = calcs[i], isD = i === 0;
+  for (var i = 0; i < calcs.length; i++) {
+    var c = calcs[i];
+    if (c.isPause) {
+      html += '<tr class="pause-point" onclick="openDetailPause(' + findPauseStoreIdx(rando, i, seq) + ')">';
+      html += '<td class="cell-water"><svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:middle"><rect x="6" y="4" width="4" height="16" rx="1" fill="#BA7517"/><rect x="14" y="4" width="4" height="16" rx="1" fill="#BA7517"/></svg></td>';
+      html += '<td><div class="cell-name" style="color:#633806">' + escHtml(c.nom||'Pause') + '</div><div class="cell-sub" style="color:#854F0B">Pause · ' + (c.duree||0) + ' min</div></td>';
+      html += '<td class="cell-hmin" style="color:var(--text3)">—</td>';
+      html += '<td class="cell-hmax" style="color:var(--text3)">—</td>';
+      html += '<td class="cell-dval" style="color:var(--text3)">—</td>';
+      html += '</tr>';
+      continue;
+    }
+    var p = c.ref;
+    var isD = i === 0;
     var rc = isD ? 'depart' : (p.water ? 'water-point' : '');
     var wc = (!isD && p.water) ? '💧' : '';
     var dp = '<span style="color:var(--green-dark); font-size:11px">+' + Math.round(c.ddplus) + '</span><br><span style="color:var(--text3); font-size:10px">−' + Math.round(c.ddminus) + '</span>';
     var sub = (p.dist||0).toFixed(1) + ' km · ▲ ' + (p.alt||0) + ' m';
-    html += '<tr class="' + rc + '"' + (!isD ? ' onclick="openDetail(' + (i-1) + ')"' : '') + '>';
+    if (!isD && p.azimut !== null && p.azimut !== undefined && p.azimut !== '') sub += ' · 🧭 ' + p.azimut + '°';
+    html += '<tr class="' + rc + '"' + (!isD ? ' onclick="openDetail(' + findRealStoreIdx(rando, p) + ')"' : '') + '>';
     html += '<td class="cell-water">' + wc + '</td>';
     html += '<td><div class="cell-name">' + escHtml(p.nom||'—') + '</div><div class="cell-sub">' + sub + '</div></td>';
     html += '<td class="cell-hmin">' + fmtTime(c.hmin) + '</td>';
@@ -482,11 +606,11 @@ function renderMarche() {
     html += '<td class="cell-dval">' + dp + '</td>';
     html += '</tr>';
   }
-  if (points.length === 0) html += '<tr><td colspan="5"><div class="no-points">Aucun point — ajoutez-en ci-dessous</div></td></tr>';
+  if ((rando.points||[]).length === 0) html += '<tr><td colspan="5"><div class="no-points">Aucun point — ajoutez-en ci-dessous</div></td></tr>';
   document.getElementById('march-tbody').innerHTML = html;
-  var totalDist = points.length > 0 ? points[points.length-1].dist : 0;
-  var totalDplus = points.length > 0 ? (points[points.length-1].dplus||0) : 0;
-  var totalDminus = hasDm ? (points[points.length-1].dminus||0) : (dminusTotal||0);
+  var totalDist = realPts.length > 0 ? realPts[realPts.length-1].dist : 0;
+  var totalDplus = realPts.length > 0 ? (realPts[realPts.length-1].dplus||0) : 0;
+  var totalDminus = hasDm ? (realPts[realPts.length-1].dminus||0) : (dminusTotal||0);
   var effort = totalDist + totalDplus/100 + totalDminus/1000;
   document.getElementById('sum-dist').textContent = totalDist.toFixed(1);
   document.getElementById('sum-effort').textContent = effort.toFixed(1);
@@ -495,20 +619,57 @@ function renderMarche() {
   document.getElementById('summary-section').style.display = 'grid';
 }
 
-function openDetail(idx) {
+// Map a cumulative real point back to its index in rando.points (by identity of order)
+function findRealStoreIdx(rando, cumPoint) {
+  var pts = rando.points || [];
+  var realCount = -1;
+  for (var i = 0; i < pts.length; i++) {
+    if (pts[i].type === 'pause') continue;
+    realCount++;
+    if (realCount === cumPoint._realIdx) return i;
+  }
+  // fallback: match by name+alt
+  for (var j = 0; j < pts.length; j++) { if (pts[j].type !== 'pause' && pts[j].nom === cumPoint.nom) return j; }
+  return 0;
+}
+
+function findPauseStoreIdx(rando, calcIdx, seq) {
+  // seq[calcIdx] is the pause (note seq has startPt prepended, so offset by 1)
+  var seqItem = seq[calcIdx];
+  var pts = rando.points || [];
+  for (var i = 0; i < pts.length; i++) {
+    if (pts[i].type === 'pause' && pts[i].nom === seqItem.nom && pts[i].duree === seqItem.duree) return i;
+  }
+  return 0;
+}
+
+function openDetail(storeIdx) {
   var rando = getActiveRando(); if (!rando) return;
-  var points = rando.points || [], p = points[idx]; if (!p) return;
-  state.detailPointIdx = idx;
+  var pts = rando.points || [];
+  var p = pts[storeIdx]; if (!p || p.type === 'pause') return;
+  state.detailPointIdx = storeIdx;
   var params = getParams(rando);
   var hp = (rando.heure||'08:00').split(':');
   var heureDepart = parseInt(hp[0]) + parseInt(hp[1])/60;
-  var hasDm = points.some(function(pt){ return pt.dminus !== null && pt.dminus !== undefined && pt.dminus !== ''; });
-  var startPt = { nom: rando.depart||'Départ', dist: 0, dplus: 0, dminus: 0 };
-  var allPts = [startPt].concat(points);
-  var calcs = calcMarche(allPts, heureDepart, params, hasDm ? null : (rando.dminusTotal||null));
-  var c = calcs[idx+1];
+  var cumPts = buildCumulative(rando);
+  var hasDm = hasDminusData(cumPts);
+  var startPt = { nom: rando.depart||'Départ', dist: 0, alt: rando.altDepart||0, dplus: 0, dminus: 0 };
+  var seq = [startPt].concat(cumPts);
+  var calcs = calcMarche(seq, heureDepart, params, hasDm ? null : (rando.dminusTotal||null));
+  // find calc entry matching this store point by counting real points
+  var realIdxTarget = 0, cnt = -1;
+  for (var k = 0; k < pts.length; k++) { if (pts[k].type !== 'pause') { cnt++; if (k === storeIdx) { realIdxTarget = cnt; break; } } }
+  var seenReal = -1, c = null, pcum = null;
+  for (var i = 1; i < calcs.length; i++) {
+    if (calcs[i].isPause) continue;
+    seenReal++;
+    if (seenReal === realIdxTarget) { c = calcs[i]; pcum = calcs[i].ref; break; }
+  }
+  if (!c) return;
   document.getElementById('detail-name').textContent = p.nom || '—';
-  document.getElementById('detail-alt').textContent = (p.dist||0).toFixed(1) + ' km cumulés · ▲ ' + (p.alt||0) + ' m altitude';
+  var altLine = (pcum.dist||0).toFixed(1) + ' km cumulés · ▲ ' + (p.alt||0) + ' m altitude';
+  if (p.azimut !== null && p.azimut !== undefined && p.azimut !== '') altLine += ' · 🧭 ' + p.azimut + '°';
+  document.getElementById('detail-alt').textContent = altLine;
   var cards = [
     { label: 'Heure min', val: fmtTime(c.hmin), cls: 'green' },
     { label: 'Heure max', val: fmtTime(c.hmax), cls: 'amber' },
@@ -525,10 +686,28 @@ function openDetail(idx) {
   document.getElementById('detail-panel').classList.add('active');
 }
 
+function openDetailPause(storeIdx) {
+  var rando = getActiveRando(); if (!rando) return;
+  var p = (rando.points||[])[storeIdx]; if (!p || p.type !== 'pause') return;
+  state.detailPointIdx = storeIdx;
+  document.getElementById('detail-name').textContent = p.nom || 'Pause';
+  document.getElementById('detail-alt').textContent = 'Pause · ' + (p.duree||0) + ' minutes';
+  document.getElementById('detail-grid').innerHTML = '<div class="detail-card amber"><div class="label">Durée</div><div class="val">' + (p.duree||0) + ' min</div></div>';
+  document.getElementById('detail-comment-box').innerHTML = p.comment ? '<div class="comment-box"><div class="label">Commentaire</div><div class="text">' + escHtml(p.comment) + '</div></div>' : '';
+  document.getElementById('marche-main').style.display = 'none';
+  document.getElementById('detail-panel').classList.add('active');
+}
+
 function closeDetail() { document.getElementById('marche-main').style.display = ''; document.getElementById('detail-panel').classList.remove('active'); }
-function editCurrentPoint() { closeDetail(); openAddPoint(state.detailPointIdx); }
+function editCurrentPoint() {
+  var rando = getActiveRando();
+  var p = (rando.points||[])[state.detailPointIdx];
+  closeDetail();
+  if (p && p.type === 'pause') openAddPause(state.detailPointIdx);
+  else openAddPoint(state.detailPointIdx);
+}
 function deleteCurrentPoint() {
-  if (!confirm('Supprimer ce point ?')) return;
+  if (!confirm('Supprimer cet élément ?')) return;
   var rando = getActiveRando();
   rando.points.splice(state.detailPointIdx, 1);
   save(); closeDetail(); renderMarche();
@@ -550,8 +729,9 @@ function renderRandoList() {
   var html = '<div class="section-title">Randonnées sauvegardées</div>';
   state.randos.forEach(function(r) {
     var isActive = r.id === state.activeRandoId;
+    var modeLabel = r.saisieMode === 'troncon' ? 'Tronçon' : 'Cumulé';
     html += '<div class="rando-item' + (isActive ? ' active-rando' : '') + '" onclick="selectRando(\'' + r.id + '\')">';
-    html += '<div><div class="rando-name">' + escHtml(r.nom||'Sans nom') + '</div><div class="rando-meta">' + (r.depart ? escHtml(r.depart) : '—') + ' · départ ' + (r.heure||'08:00').replace(':','h') + '</div></div>';
+    html += '<div><div class="rando-name">' + escHtml(r.nom||'Sans nom') + '</div><div class="rando-meta">' + (r.depart ? escHtml(r.depart) : '—') + ' · ' + (r.heure||'08:00').replace(':','h') + ' · ' + modeLabel + '</div></div>';
     html += '<div style="display:flex;gap:6px;align-items:center">';
     html += '<button class="btn" onclick="event.stopPropagation();openEditRandoById(\'' + r.id + '\')" style="padding:5px 8px"><svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>';
     html += '<button class="btn danger" onclick="event.stopPropagation();deleteRando(\'' + r.id + '\')" style="padding:5px 8px"><svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>';
@@ -563,18 +743,39 @@ function renderRandoList() {
 
 function selectRando(id) { state.activeRandoId = id; save(); showScreen('marche'); }
 
+function setSaisieMode(mode) {
+  var rando = state.editingRandoId ? state.randos.find(function(r){ return r.id === state.editingRandoId; }) : null;
+  var locked = rando && (rando.points||[]).length > 0;
+  if (locked) return;
+  state.formSaisieMode = mode;
+  document.getElementById('mode-cumule').classList.toggle('active', mode === 'cumule');
+  document.getElementById('mode-troncon').classList.toggle('active', mode === 'troncon');
+}
+
+function refreshModeToggle(rando) {
+  var locked = rando && (rando.points||[]).length > 0;
+  document.getElementById('mode-cumule').disabled = locked;
+  document.getElementById('mode-troncon').disabled = locked;
+  document.getElementById('mode-locked').style.display = locked ? 'block' : 'none';
+  document.getElementById('mode-cumule').classList.toggle('active', state.formSaisieMode === 'cumule');
+  document.getElementById('mode-troncon').classList.toggle('active', state.formSaisieMode === 'troncon');
+}
+
 function openNewRando() {
   state.editingRandoId = null;
+  state.formSaisieMode = 'cumule';
   document.getElementById('modal-rando-title').textContent = 'Nouvelle randonnée';
   document.getElementById('f-nom').value = '';
   document.getElementById('f-cartes').value = '';
   document.getElementById('f-depart').value = '';
   document.getElementById('f-arrivee').value = '';
   document.getElementById('f-heure').value = '08:00';
+  document.getElementById('f-altdepart').value = '';
   document.getElementById('f-vplat').value = state.globalParams.vplat;
   document.getElementById('f-vdplus').value = state.globalParams.vdplus;
   document.getElementById('f-vdminus').value = state.globalParams.vdminus;
   document.getElementById('f-comment').value = '';
+  refreshModeToggle(null);
   openModal('modal-rando');
 }
 
@@ -583,16 +784,19 @@ function openEditRando() { var r = getActiveRando(); if (!r) return openNewRando
 function openEditRandoById(id) {
   var r = state.randos.find(function(x){ return x.id === id; }); if (!r) return;
   state.editingRandoId = id;
+  state.formSaisieMode = r.saisieMode || 'cumule';
   document.getElementById('modal-rando-title').textContent = 'Modifier la randonnée';
   document.getElementById('f-nom').value = r.nom||'';
   document.getElementById('f-cartes').value = r.cartes||'';
   document.getElementById('f-depart').value = r.depart||'';
   document.getElementById('f-arrivee').value = r.arrivee||'';
   document.getElementById('f-heure').value = r.heure||'08:00';
+  document.getElementById('f-altdepart').value = (r.altDepart!==undefined && r.altDepart!==0) ? r.altDepart : '';
   document.getElementById('f-vplat').value = r.params ? r.params.vplat : state.globalParams.vplat;
   document.getElementById('f-vdplus').value = r.params ? r.params.vdplus : state.globalParams.vdplus;
   document.getElementById('f-vdminus').value = r.params ? r.params.vdminus : state.globalParams.vdminus;
   document.getElementById('f-comment').value = r.comment||'';
+  refreshModeToggle(r);
   openModal('modal-rando');
 }
 
@@ -600,16 +804,19 @@ function saveRando() {
   var nom = document.getElementById('f-nom').value.trim();
   if (!nom) { alert('Le nom est requis.'); return; }
   var params = { vplat: parseFloat(document.getElementById('f-vplat').value)||4.2, vdplus: parseFloat(document.getElementById('f-vdplus').value)||400, vdminus: parseFloat(document.getElementById('f-vdminus').value)||600 };
+  var altDepart = parseInt(document.getElementById('f-altdepart').value)||0;
   if (state.editingRandoId) {
     var r = state.randos.find(function(x){ return x.id === state.editingRandoId; });
     r.nom = nom; r.cartes = document.getElementById('f-cartes').value;
     r.depart = document.getElementById('f-depart').value;
     r.arrivee = document.getElementById('f-arrivee').value || document.getElementById('f-depart').value;
     r.heure = document.getElementById('f-heure').value;
+    r.altDepart = altDepart;
+    if ((r.points||[]).length === 0) r.saisieMode = state.formSaisieMode;
     r.params = params;
     r.comment = document.getElementById('f-comment').value;
   } else {
-    var nr = { id: uid(), nom: nom, cartes: document.getElementById('f-cartes').value, depart: document.getElementById('f-depart').value, arrivee: document.getElementById('f-arrivee').value || document.getElementById('f-depart').value, heure: document.getElementById('f-heure').value, params: params, comment: document.getElementById('f-comment').value, points: [], dminusTotal: null };
+    var nr = { id: uid(), nom: nom, cartes: document.getElementById('f-cartes').value, depart: document.getElementById('f-depart').value, arrivee: document.getElementById('f-arrivee').value || document.getElementById('f-depart').value, heure: document.getElementById('f-heure').value, altDepart: altDepart, saisieMode: state.formSaisieMode, params: params, comment: document.getElementById('f-comment').value, points: [], dminusTotal: null };
     state.randos.push(nr);
     state.activeRandoId = nr.id;
   }
@@ -623,21 +830,30 @@ function deleteRando(id) {
   save(); renderRandoList(); renderMarche();
 }
 
-function openAddPoint(idx) {
+function applyPointFormLabels(rando) {
+  var troncon = rando && rando.saisieMode === 'troncon';
+  document.getElementById('lbl-dist').innerHTML = troncon ? 'Distance du tronçon<small>km depuis le point précédent</small>' : 'Distance cumulée<small>km depuis le départ</small>';
+  document.getElementById('lbl-dplus').innerHTML = troncon ? 'D+ du tronçon<small>m du segment</small>' : 'Cumul D+<small>m depuis le départ</small>';
+  document.getElementById('lbl-dminus').innerHTML = troncon ? 'D− du tronçon<small>m du segment · optionnel</small>' : 'Cumul D−<small>m · optionnel</small>';
+}
+
+function openAddPoint(storeIdx) {
   var rando = getActiveRando(); if (!rando) { alert('Sélectionnez une randonnée d\'abord.'); return; }
-  state.editingPointIdx = (idx !== undefined) ? idx : null;
+  applyPointFormLabels(rando);
+  state.editingPointIdx = (storeIdx !== undefined) ? storeIdx : null;
   document.getElementById('modal-point-title').textContent = state.editingPointIdx !== null ? 'Modifier le point' : 'Nouveau point';
   if (state.editingPointIdx !== null) {
     var p = rando.points[state.editingPointIdx];
     document.getElementById('pt-nom').value = p.nom||'';
-    document.getElementById('pt-dist').value = p.dist||'';
+    document.getElementById('pt-dist').value = (p.dist!==undefined&&p.dist!==null) ? p.dist : '';
     document.getElementById('pt-alt').value = p.alt||'';
-    document.getElementById('pt-dplus').value = p.dplus||'';
+    document.getElementById('pt-dplus').value = (p.dplus!==undefined&&p.dplus!==null) ? p.dplus : '';
     document.getElementById('pt-dminus').value = (p.dminus !== null && p.dminus !== undefined) ? p.dminus : '';
+    document.getElementById('pt-azimut').value = (p.azimut !== null && p.azimut !== undefined) ? p.azimut : '';
     document.getElementById('pt-water').checked = p.water||false;
     document.getElementById('pt-comment').value = p.comment||'';
   } else {
-    ['pt-nom','pt-dist','pt-alt','pt-dplus','pt-dminus','pt-comment'].forEach(function(id){ document.getElementById(id).value=''; });
+    ['pt-nom','pt-dist','pt-alt','pt-dplus','pt-dminus','pt-azimut','pt-comment'].forEach(function(id){ document.getElementById(id).value=''; });
     document.getElementById('pt-water').checked = false;
   }
   openModal('modal-point');
@@ -646,12 +862,69 @@ function openAddPoint(idx) {
 function savePoint() {
   var nom = document.getElementById('pt-nom').value.trim();
   if (!nom) { alert('Le nom du point est requis.'); return; }
-  var dminusVal = document.getElementById('pt-dminus').value;
-  var point = { nom: nom, dist: parseFloat(document.getElementById('pt-dist').value)||0, alt: parseInt(document.getElementById('pt-alt').value)||0, dplus: parseInt(document.getElementById('pt-dplus').value)||0, dminus: dminusVal !== '' ? parseInt(dminusVal) : null, water: document.getElementById('pt-water').checked, comment: document.getElementById('pt-comment').value };
   var rando = getActiveRando();
-  if (state.editingPointIdx !== null) rando.points[state.editingPointIdx] = point;
-  else { rando.points.push(point); rando.points.sort(function(a,b){ return a.dist - b.dist; }); }
+  var dminusVal = document.getElementById('pt-dminus').value;
+  var azimutVal = document.getElementById('pt-azimut').value;
+  var point = { nom: nom, dist: parseFloat(document.getElementById('pt-dist').value)||0, alt: parseInt(document.getElementById('pt-alt').value)||0, dplus: parseInt(document.getElementById('pt-dplus').value)||0, dminus: dminusVal !== '' ? parseInt(dminusVal) : null, azimut: azimutVal !== '' ? parseInt(azimutVal) : null, water: document.getElementById('pt-water').checked, comment: document.getElementById('pt-comment').value };
+  if (state.editingPointIdx !== null) {
+    rando.points[state.editingPointIdx] = point;
+  } else {
+    rando.points.push(point);
+  }
+  // Sort only in cumulé mode (by cumulative distance). In troncon mode, keep creation order.
+  if (rando.saisieMode !== 'troncon') sortPointsCumule(rando);
   save(); closeModal('modal-point'); renderMarche();
+}
+
+// In cumulé mode, sort real points by distance while keeping pauses attached after their preceding real point.
+function sortPointsCumule(rando) {
+  var pts = rando.points || [];
+  // Build groups: each real point with the pauses that follow it
+  var groups = [];
+  var leadingPauses = [];
+  var current = null;
+  for (var i = 0; i < pts.length; i++) {
+    if (pts[i].type === 'pause') {
+      if (current) current.pauses.push(pts[i]); else leadingPauses.push(pts[i]);
+    } else {
+      current = { real: pts[i], pauses: [] };
+      groups.push(current);
+    }
+  }
+  groups.sort(function(a, b){ return (a.real.dist||0) - (b.real.dist||0); });
+  var out = leadingPauses.slice();
+  groups.forEach(function(g){ out.push(g.real); g.pauses.forEach(function(p){ out.push(p); }); });
+  rando.points = out;
+}
+
+function openAddPause(storeIdx) {
+  var rando = getActiveRando(); if (!rando) { alert('Sélectionnez une randonnée d\'abord.'); return; }
+  state.editingPointIdx = (storeIdx !== undefined) ? storeIdx : null;
+  document.getElementById('modal-pause-title').textContent = state.editingPointIdx !== null ? 'Modifier la pause' : 'Nouvelle pause';
+  if (state.editingPointIdx !== null) {
+    var p = rando.points[state.editingPointIdx];
+    document.getElementById('pause-nom').value = p.nom||'';
+    document.getElementById('pause-duree').value = p.duree||'';
+    document.getElementById('pause-comment').value = p.comment||'';
+  } else {
+    document.getElementById('pause-nom').value = '';
+    document.getElementById('pause-duree').value = '';
+    document.getElementById('pause-comment').value = '';
+  }
+  openModal('modal-pause');
+}
+
+function savePause() {
+  var nom = document.getElementById('pause-nom').value.trim() || 'Pause';
+  var duree = parseInt(document.getElementById('pause-duree').value)||0;
+  var rando = getActiveRando();
+  var pause = { type: 'pause', nom: nom, duree: duree, comment: document.getElementById('pause-comment').value };
+  if (state.editingPointIdx !== null) {
+    rando.points[state.editingPointIdx] = pause;
+  } else {
+    rando.points.push(pause);
+  }
+  save(); closeModal('modal-pause'); renderMarche();
 }
 
 function onDMinusTotalChange() {
@@ -696,7 +969,7 @@ function importData(event) {
       var ids = state.randos.map(function(r){ return r.id; }), added = 0;
       data.randos.forEach(function(r){ if (!ids.includes(r.id)) { state.randos.push(r); added++; } });
       if (data.globalParams) state.globalParams = data.globalParams;
-      save(); renderParams(); renderRandoList(); renderMarche();
+      load(); save(); renderParams(); renderRandoList(); renderMarche();
       var st = document.getElementById('import-status');
       st.textContent = added + ' randonnée(s) importée(s).'; st.style.display = 'block';
       setTimeout(function(){ st.style.display='none'; }, 4000);
