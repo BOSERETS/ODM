@@ -126,6 +126,20 @@ textarea.form-input { resize: vertical; min-height: 60px; text-align: left; }
 .add-point-btn { display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1; padding: 10px; border: 1.5px dashed var(--green); border-radius: var(--radius); background: none; color: var(--green); font-size: 13px; cursor: pointer; font-family: inherit; }
 .add-point-btn.pause { border-color: var(--amber); color: var(--amber); }
 .add-point-btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+/* Toast */
+.toast-wrap { position: fixed; left: 0; right: 0; bottom: 76px; display: flex; justify-content: center; z-index: 400; pointer-events: none; padding: 0 16px; }
+.toast { background: var(--green-dark); color: #fff; padding: 12px 16px; border-radius: var(--radius); max-width: 420px; width: 100%; box-shadow: 0 4px 16px rgba(0,0,0,0.25); opacity: 0; transform: translateY(12px); transition: opacity 0.2s, transform 0.2s; pointer-events: auto; }
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.error { background: #6e1717; }
+.toast .toast-head { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.7; margin-bottom: 3px; }
+.toast .toast-msg { font-size: 13px; line-height: 1.4; }
+/* Confirm dialog */
+.confirm-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 500; align-items: center; justify-content: center; padding: 24px; }
+.confirm-overlay.open { display: flex; }
+.confirm-box { background: var(--surface); border-radius: var(--radius); max-width: 360px; width: 100%; overflow: hidden; }
+.confirm-head { background: var(--green-dark); color: #fff; padding: 12px 16px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+.confirm-body { padding: 18px 16px; font-size: 14px; color: var(--text); line-height: 1.5; }
+.confirm-actions { display: flex; gap: 8px; padding: 0 16px 16px; }
 </style>
 </head>
 <body>
@@ -707,10 +721,11 @@ function editCurrentPoint() {
   else openAddPoint(state.detailPointIdx);
 }
 function deleteCurrentPoint() {
-  if (!confirm('Supprimer cet élément ?')) return;
-  var rando = getActiveRando();
-  rando.points.splice(state.detailPointIdx, 1);
-  save(); closeDetail(); renderMarche();
+  showConfirm('Supprimer cet élément ?', function() {
+    var rando = getActiveRando();
+    rando.points.splice(state.detailPointIdx, 1);
+    save(); closeDetail(); renderMarche();
+  }, 'Supprimer');
 }
 
 function showScreen(name) {
@@ -802,7 +817,7 @@ function openEditRandoById(id) {
 
 function saveRando() {
   var nom = document.getElementById('f-nom').value.trim();
-  if (!nom) { alert('Le nom est requis.'); return; }
+  if (!nom) { showToast('Le nom est requis.', true); return; }
   var params = { vplat: parseFloat(document.getElementById('f-vplat').value)||4.2, vdplus: parseFloat(document.getElementById('f-vdplus').value)||400, vdminus: parseFloat(document.getElementById('f-vdminus').value)||600 };
   var altDepart = parseInt(document.getElementById('f-altdepart').value)||0;
   if (state.editingRandoId) {
@@ -824,10 +839,11 @@ function saveRando() {
 }
 
 function deleteRando(id) {
-  if (!confirm('Supprimer cette randonnée ?')) return;
-  state.randos = state.randos.filter(function(r){ return r.id !== id; });
-  if (state.activeRandoId === id) state.activeRandoId = state.randos.length > 0 ? state.randos[0].id : null;
-  save(); renderRandoList(); renderMarche();
+  showConfirm('Supprimer cette randonnée ?', function() {
+    state.randos = state.randos.filter(function(r){ return r.id !== id; });
+    if (state.activeRandoId === id) state.activeRandoId = state.randos.length > 0 ? state.randos[0].id : null;
+    save(); renderRandoList(); renderMarche();
+  }, 'Supprimer');
 }
 
 function applyPointFormLabels(rando) {
@@ -838,7 +854,7 @@ function applyPointFormLabels(rando) {
 }
 
 function openAddPoint(storeIdx) {
-  var rando = getActiveRando(); if (!rando) { alert('Sélectionnez une randonnée d\'abord.'); return; }
+  var rando = getActiveRando(); if (!rando) { showToast('Sélectionnez une randonnée d\'abord.', true); return; }
   applyPointFormLabels(rando);
   state.editingPointIdx = (storeIdx !== undefined) ? storeIdx : null;
   document.getElementById('modal-point-title').textContent = state.editingPointIdx !== null ? 'Modifier le point' : 'Nouveau point';
@@ -861,13 +877,13 @@ function openAddPoint(storeIdx) {
 
 function savePoint() {
   var nom = document.getElementById('pt-nom').value.trim();
-  if (!nom) { alert('Le nom du point est requis.'); return; }
+  if (!nom) { showToast('Le nom du point est requis.', true); return; }
   var rando = getActiveRando();
   var dminusVal = document.getElementById('pt-dminus').value;
   var azimutVal = document.getElementById('pt-azimut').value;
   if (azimutVal !== '') {
     var az = parseInt(azimutVal);
-    if (isNaN(az) || az < 0 || az > 359) { alert('L\'azimut doit être compris entre 0 et 359°.'); return; }
+    if (isNaN(az) || az < 0 || az > 359) { showToast('L\'azimut doit être compris entre 0 et 359°.', true); return; }
   }
   var point = { nom: nom, dist: parseFloat(document.getElementById('pt-dist').value)||0, alt: parseInt(document.getElementById('pt-alt').value)||0, dplus: parseInt(document.getElementById('pt-dplus').value)||0, dminus: dminusVal !== '' ? parseInt(dminusVal) : null, azimut: azimutVal !== '' ? parseInt(azimutVal) : null, water: document.getElementById('pt-water').checked, comment: document.getElementById('pt-comment').value };
   if (state.editingPointIdx !== null) {
@@ -902,7 +918,7 @@ function sortPointsCumule(rando) {
 }
 
 function openAddPause(storeIdx) {
-  var rando = getActiveRando(); if (!rando) { alert('Sélectionnez une randonnée d\'abord.'); return; }
+  var rando = getActiveRando(); if (!rando) { showToast('Sélectionnez une randonnée d\'abord.', true); return; }
   state.editingPointIdx = (storeIdx !== undefined) ? storeIdx : null;
   document.getElementById('modal-pause-title').textContent = state.editingPointIdx !== null ? 'Modifier la pause' : 'Nouvelle pause';
   if (state.editingPointIdx !== null) {
@@ -966,18 +982,18 @@ function importData(event) {
   var file = event.target.files[0]; if (!file) return;
   var reader = new FileReader();
   reader.onload = function(e) {
+    var data;
     try {
-      var data = JSON.parse(e.target.result);
+      data = JSON.parse(e.target.result);
       if (!data.randos) throw new Error();
-      if (!confirm('Importer ' + data.randos.length + ' randonnée(s) ? Les doublons seront ignorés.')) return;
+    } catch(err) { showToast('Fichier invalide.', true); event.target.value = ''; return; }
+    showConfirm('Importer ' + data.randos.length + ' randonnée(s) ? Les doublons seront ignorés.', function() {
       var ids = state.randos.map(function(r){ return r.id; }), added = 0;
       data.randos.forEach(function(r){ if (!ids.includes(r.id)) { state.randos.push(r); added++; } });
       if (data.globalParams) state.globalParams = data.globalParams;
       load(); save(); renderParams(); renderRandoList(); renderMarche();
-      var st = document.getElementById('import-status');
-      st.textContent = added + ' randonnée(s) importée(s).'; st.style.display = 'block';
-      setTimeout(function(){ st.style.display='none'; }, 4000);
-    } catch(e) { alert('Fichier invalide.'); }
+      showToast(added + ' randonnée(s) importée(s).');
+    }, 'Importer');
     event.target.value = '';
   };
   reader.readAsText(file);
@@ -985,6 +1001,28 @@ function importData(event) {
 
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+var _toastTimer = null;
+function showToast(msg, isError) {
+  var t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  t.classList.toggle('error', !!isError);
+  t.classList.add('show');
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 3200);
+}
+
+function showConfirm(msg, onOk, okLabel) {
+  var ov = document.getElementById('confirm-overlay');
+  document.getElementById('confirm-body').textContent = msg;
+  document.getElementById('confirm-ok').textContent = okLabel || 'Confirmer';
+  ov.classList.add('open');
+  var okBtn = document.getElementById('confirm-ok');
+  var cancelBtn = document.getElementById('confirm-cancel');
+  function cleanup() { ov.classList.remove('open'); okBtn.onclick = null; cancelBtn.onclick = null; }
+  okBtn.onclick = function(){ cleanup(); onOk(); };
+  cancelBtn.onclick = function(){ cleanup(); };
+}
 
 document.querySelectorAll('.modal-overlay').forEach(function(m){
   m.addEventListener('click', function(e){ if (e.target === m) m.classList.remove('open'); });
@@ -997,5 +1035,17 @@ if ('serviceWorker' in navigator) {
 load();
 renderMarche();
 </script>
+<div class="toast-wrap"><div class="toast" id="toast"><div class="toast-head">ODM by CimeEnvie</div><div class="toast-msg" id="toast-msg"></div></div></div>
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <div class="confirm-head">ODM by CimeEnvie</div>
+    <div class="confirm-body" id="confirm-body"></div>
+    <div class="confirm-actions">
+      <button class="btn primary" id="confirm-ok" style="flex:1">Confirmer</button>
+      <button class="btn" id="confirm-cancel" style="flex:1">Annuler</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
