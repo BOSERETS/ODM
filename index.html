@@ -378,7 +378,7 @@ textarea.form-input { resize: vertical; min-height: 60px; text-align: left; }
       </div>
       <div class="form-row">
         <div class="form-label">🧭 Azimut to<small>cap 0-360° vers le suivant</small></div>
-        <input class="form-input med" type="number" id="pt-azimut" placeholder="—" step="1" min="0" max="360">
+        <input class="form-input med" type="number" id="pt-azimut" placeholder="—" step="1" min="0" max="359">
       </div>
       <div class="toggle-row">
         <div class="toggle-label">Point d'eau 💧</div>
@@ -865,6 +865,10 @@ function savePoint() {
   var rando = getActiveRando();
   var dminusVal = document.getElementById('pt-dminus').value;
   var azimutVal = document.getElementById('pt-azimut').value;
+  if (azimutVal !== '') {
+    var az = parseInt(azimutVal);
+    if (isNaN(az) || az < 0 || az > 359) { alert('L\'azimut doit être compris entre 0 et 359°.'); return; }
+  }
   var point = { nom: nom, dist: parseFloat(document.getElementById('pt-dist').value)||0, alt: parseInt(document.getElementById('pt-alt').value)||0, dplus: parseInt(document.getElementById('pt-dplus').value)||0, dminus: dminusVal !== '' ? parseInt(dminusVal) : null, azimut: azimutVal !== '' ? parseInt(azimutVal) : null, water: document.getElementById('pt-water').checked, comment: document.getElementById('pt-comment').value };
   if (state.editingPointIdx !== null) {
     rando.points[state.editingPointIdx] = point;
