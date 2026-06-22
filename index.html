@@ -276,6 +276,29 @@ textarea.form-input { resize: vertical; min-height: 60px; text-align: left; }
   </div>
 </div>
 
+<div class="screen" id="screen-presence">
+  <div class="topbar">
+    <h1 style="color:#fff; font-size:17px; font-weight:normal">Présence & médical</h1>
+  </div>
+  <div id="presence-norando" class="no-points" style="padding:24px 16px; display:none">
+    Aucune randonnée sélectionnée.
+  </div>
+  <div id="presence-nodate" class="no-points" style="padding:24px 16px; display:none">
+    Renseignez d'abord une <strong>date de début</strong> dans la fiche de la randonnée pour pouvoir charger les participants.
+  </div>
+  <div id="presence-content" style="display:none">
+    <div style="padding:14px 16px">
+      <div id="presence-rando-name" style="font-size:13px; color:var(--text2); margin-bottom:12px"></div>
+      <button class="btn primary" style="width:100%" onclick="document.getElementById('participants-input').click()">
+        <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+        Charger participants
+      </button>
+      <input type="file" id="participants-input" accept=".json" style="display:none" onchange="loadParticipants(event)">
+      <div id="presence-count" style="margin-top:14px; font-size:13px; color:var(--text); display:none"></div>
+    </div>
+  </div>
+</div>
+
 <div class="bottom-nav">
   <button class="nav-btn active" id="nav-marche" onclick="showScreen('marche')">
     <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
@@ -284,6 +307,10 @@ textarea.form-input { resize: vertical; min-height: 60px; text-align: left; }
   <button class="nav-btn" id="nav-randos" onclick="showScreen('randos')">
     <svg viewBox="0 0 24 24"><path d="M3 17l4-8 4 4 4-6 4 10"/><path d="M3 20h18"/></svg>
     Randos
+  </button>
+  <button class="nav-btn" id="nav-presence" onclick="showScreen('presence')">
+    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    Présence
   </button>
   <button class="nav-btn" id="nav-params" onclick="showScreen('params')">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -792,6 +819,7 @@ function showScreen(name) {
   document.getElementById('nav-' + name).classList.add('active');
   if (name === 'params') renderParams();
   if (name === 'randos') renderRandoList();
+  if (name === 'presence') renderPresence();
   if (name === 'marche') { closeDetail(); renderMarche(); }
 }
 
@@ -1106,6 +1134,192 @@ function showConfirm(msg, onOk, okLabel) {
   function cleanup() { ov.classList.remove('open'); okBtn.onclick = null; cancelBtn.onclick = null; }
   okBtn.onclick = function(){ cleanup(); onOk(); };
   cancelBtn.onclick = function(){ cleanup(); };
+}
+
+/* ============================================================
+   MODULE PRÉSENCE & MÉDICAL (ODMV2 — étape 2)
+   - Crypto : clé AES-GCM non-extractible en IndexedDB
+   - Médical chiffré : IndexedDB (hors odm_state, hors cache SW)
+   - Identité/pointage en clair : localStorage clé séparée par rando
+   - Asynchrone (Promises) — isolé du cœur synchrone d'ODM
+   ============================================================ */
+
+/* --- IndexedDB bas niveau --- */
+var MEDDB_NAME = 'odm_med';
+var MEDDB_VERSION = 1;
+function medDbOpen() {
+  return new Promise(function(resolve, reject) {
+    var req = indexedDB.open(MEDDB_NAME, MEDDB_VERSION);
+    req.onupgradeneeded = function(e) {
+      var db = e.target.result;
+      if (!db.objectStoreNames.contains('keys')) db.createObjectStore('keys');
+      if (!db.objectStoreNames.contains('medical')) db.createObjectStore('medical');
+    };
+    req.onsuccess = function(e) { resolve(e.target.result); };
+    req.onerror = function(e) { reject(e.target.error); };
+  });
+}
+function medDbPut(store, key, value) {
+  return medDbOpen().then(function(db) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction(store, 'readwrite');
+      tx.objectStore(store).put(value, key);
+      tx.oncomplete = function(){ resolve(true); };
+      tx.onerror = function(e){ reject(e.target.error); };
+    });
+  });
+}
+function medDbGet(store, key) {
+  return medDbOpen().then(function(db) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction(store, 'readonly');
+      var r = tx.objectStore(store).get(key);
+      r.onsuccess = function(){ resolve(r.result); };
+      r.onerror = function(e){ reject(e.target.error); };
+    });
+  });
+}
+function medDbDelete(store, key) {
+  return medDbOpen().then(function(db) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction(store, 'readwrite');
+      tx.objectStore(store).delete(key);
+      tx.oncomplete = function(){ resolve(true); };
+      tx.onerror = function(e){ reject(e.target.error); };
+    });
+  });
+}
+
+/* --- Clé de chiffrement : non-extractible, créée une fois, rangée en IndexedDB --- */
+function getCryptoKey() {
+  return medDbGet('keys', 'medKey').then(function(existing) {
+    if (existing) return existing;
+    return crypto.subtle.generateKey(
+      { name: 'AES-GCM', length: 256 },
+      false, /* extractable: false → la clé ne peut jamais être exportée par le JS */
+      ['encrypt', 'decrypt']
+    ).then(function(key) {
+      return medDbPut('keys', 'medKey', key).then(function(){ return key; });
+    });
+  });
+}
+
+/* --- Chiffrement / déchiffrement d'un objet JSON --- */
+function encryptObj(obj) {
+  return getCryptoKey().then(function(key) {
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    var data = new TextEncoder().encode(JSON.stringify(obj));
+    return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, data).then(function(ct) {
+      return { iv: Array.from(iv), ct: Array.from(new Uint8Array(ct)) };
+    });
+  });
+}
+function decryptObj(blob) {
+  return getCryptoKey().then(function(key) {
+    var iv = new Uint8Array(blob.iv);
+    var ct = new Uint8Array(blob.ct);
+    return crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, ct).then(function(pt) {
+      return JSON.parse(new TextDecoder().decode(pt));
+    });
+  });
+}
+
+/* --- Champs médicaux (chiffrés). PART_COMMENTS inclus : contient des
+       observations médicales pour les journées (doc §6). --- */
+var MEDICAL_FIELDS = [
+  'CONT_URGENCE', 'MED_TRAITANT',
+  'ASTHME', 'HYPERTENSION', 'NO_PATHO', 'DIABETE', 'EPILEPSIE',
+  'AFF_CARDIA', 'AFF_CUT', 'RHUMATO', 'HAND', 'HAN_P', 'HAN_MP',
+  'AFF_AUTRES', 'HAN_CONS', 'INTO_ALI', 'ALL_ALI',
+  'SOINS_MED', 'SOINS_MED_AUTO', 'SOINS_MED_DESC', 'AUTRES_INFO_MED',
+  'PART_COMMENTS'
+];
+/* Champs identité/pointage (clair). */
+var IDENT_FIELDS = [
+  'IDPARTICIPANT', 'PART_NB_PART', 'PART_OPT_NB', 'PART_OPT_COM',
+  'NOM', 'PRENOM', 'TEL', 'MAIL', 'DT_NAIS'
+];
+
+/* --- Stockage identité/pointage : localStorage, clé séparée par rando, HORS export --- */
+function participantsKey(randoId) { return 'odm_participants_' + randoId; }
+function saveParticipantsIdent(randoId, list) {
+  try { localStorage.setItem(participantsKey(randoId), JSON.stringify(list)); } catch(e) {}
+}
+function loadParticipantsIdent(randoId) {
+  try {
+    var s = localStorage.getItem(participantsKey(randoId));
+    return s ? JSON.parse(s) : null;
+  } catch(e) { return null; }
+}
+
+/* --- Parsing du JSON WinDev + split clair/chiffré --- */
+function loadParticipants(event) {
+  var file = event.target.files[0]; if (!file) { return; }
+  var rando = getActiveRando();
+  if (!rando) { showToast('Aucune randonnée active.', true); event.target.value=''; return; }
+  if (!rando.dateDebut) { showToast('Renseignez d\'abord une date de début.', true); event.target.value=''; return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var data, list;
+    try {
+      data = JSON.parse(e.target.result);
+      list = data.REQ_PARTI_LISTE_MEDICALE_JSON;
+      if (!Array.isArray(list) || list.length === 0) throw new Error();
+    } catch(err) { showToast('Fichier participants invalide.', true); event.target.value=''; return; }
+
+    var orga = (list[0] && list[0].ORGA_DENO) ? list[0].ORGA_DENO : '(sortie sans nom)';
+    showConfirm('Charger les ' + list.length + ' participant(s) de « ' + orga + ' » ?', function() {
+      /* split */
+      var idents = [], medByPid = {};
+      list.forEach(function(p) {
+        var ident = {};
+        IDENT_FIELDS.forEach(function(f){ ident[f] = (p[f] !== undefined ? p[f] : null); });
+        idents.push(ident);
+        var med = {};
+        MEDICAL_FIELDS.forEach(function(f){ med[f] = (p[f] !== undefined ? p[f] : null); });
+        medByPid[p.IDPARTICIPANT] = med;
+      });
+      /* identité/pointage en clair */
+      saveParticipantsIdent(rando.id, idents);
+      /* médical chiffré en IndexedDB, clé = randoId */
+      encryptObj({ orga: orga, loadedAt: new Date().toISOString(), med: medByPid })
+        .then(function(blob) { return medDbPut('medical', rando.id, blob); })
+        .then(function() {
+          showToast(list.length + ' participant(s) chargé(s).');
+          renderPresence();
+        })
+        .catch(function() {
+          showToast('Erreur de chiffrement du médical.', true);
+        });
+    }, 'Charger');
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+/* --- UI écran Présence --- */
+function renderPresence() {
+  var rando = getActiveRando();
+  var elNoRando = document.getElementById('presence-norando');
+  var elNoDate = document.getElementById('presence-nodate');
+  var elContent = document.getElementById('presence-content');
+  elNoRando.style.display = 'none';
+  elNoDate.style.display = 'none';
+  elContent.style.display = 'none';
+  if (!rando) { elNoRando.style.display = 'block'; return; }
+  if (!rando.dateDebut) { elNoDate.style.display = 'block'; return; }
+  elContent.style.display = 'block';
+  document.getElementById('presence-rando-name').textContent =
+    (rando.nom || 'Sans nom') + ' · ' + rando.dateDebut;
+  var idents = loadParticipantsIdent(rando.id);
+  var countEl = document.getElementById('presence-count');
+  if (idents && idents.length) {
+    var people = idents.reduce(function(acc, p){ return acc + (parseInt(p.PART_NB_PART)||0); }, 0);
+    countEl.textContent = idents.length + ' inscription(s) chargée(s) · ' + people + ' personne(s) attendue(s).';
+    countEl.style.display = 'block';
+  } else {
+    countEl.style.display = 'none';
+  }
 }
 
 document.querySelectorAll('.modal-overlay').forEach(function(m){
