@@ -1,1 +1,1350 @@
 
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1a2e1a">
+<link rel="manifest" href="manifest.json">
+<title>Ordre de Marche</title>
+<style>
+:root {
+  --bg: #f5f4f0; --surface: #ffffff; --surface2: #f0efe9; --border: #d8d6cc;
+  --text: #1a1a18; --text2: #5a5a52; --text3: #9a9a90;
+  --green: #2d6a2d; --green-light: #e8f4e8; --green-dark: #1a3d1a;
+  --amber: #8b5e00; --amber-light: #fdf3dc;
+  --blue: #1a4a7a; --blue-light: #e6f0fb;
+  --red: #8b2020; --radius: 10px; --radius-sm: 6px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { font-family: 'Georgia', serif; background: var(--bg); color: var(--text); min-height: 100vh; max-width: 480px; margin: 0 auto; }
+.app { display: flex; flex-direction: column; min-height: 100vh; }
+.bottom-nav { position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--border); display: flex; z-index: 100; }
+.nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 8px 4px 10px; gap: 3px; border: none; background: none; cursor: pointer; color: var(--text3); font-size: 10px; font-family: inherit; transition: color 0.15s; }
+.nav-btn.active { color: var(--green); }
+.nav-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.screen { display: none; flex: 1; flex-direction: column; overflow-y: auto; }
+.screen.active { display: flex; }
+.topbar { background: var(--green-dark); color: #fff; padding: 14px 16px 12px; }
+.topbar h1 { font-size: 17px; font-weight: normal; letter-spacing: 0.02em; }
+.topbar .sub { font-size: 11px; opacity: 0.7; margin-top: 2px; font-style: italic; }
+.topbar-row { display: flex; align-items: flex-start; justify-content: space-between; }
+.icon-btn { background: rgba(255,255,255,0.15); border: none; color: #fff; border-radius: var(--radius-sm); padding: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.icon-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.march-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 340px; }
+.march-table th { background: var(--surface2); color: var(--text3); font-size: 9px; font-weight: normal; letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: center; white-space: nowrap; }
+.march-table th:nth-child(2) { text-align: left; }
+.march-table td { padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.march-table tr:last-child td { border-bottom: none; }
+.march-table tr.depart td { background: var(--surface2); color: var(--text2); }
+.march-table tr.water-point { background: #f0f7ff; }
+.march-table tr.pause-point { background: #FAEEDA; }
+.march-table tr:not(.depart):hover { background: var(--surface2); cursor: pointer; }
+.cell-water { width: 18px; text-align: center; padding: 8px 2px 8px 8px !important; }
+.cell-name { font-size: 12px; color: var(--text); }
+.cell-sub { font-size: 10px; color: var(--text3); margin-top: 1px; }
+.cell-hmin { color: var(--green); font-size: 12px; font-weight: bold; text-align: center; white-space: nowrap; }
+.cell-hmax { color: var(--amber); font-size: 12px; text-align: center; white-space: nowrap; }
+.cell-dval { font-size: 11px; text-align: center; }
+.summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; background: var(--surface); border-top: 2px solid var(--green-dark); }
+.stat-card { background: var(--surface2); border-radius: var(--radius-sm); padding: 10px 12px; }
+.stat-label { font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 4px; }
+.stat-value { font-size: 20px; color: var(--text); }
+.stat-unit { font-size: 11px; color: var(--text3); }
+.detail-panel { display: none; flex-direction: column; }
+.detail-panel.active { display: flex; }
+.detail-back { display: flex; align-items: center; gap: 6px; padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--border); cursor: pointer; color: var(--green); font-size: 13px; }
+.detail-back svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.detail-header { padding: 14px 16px; background: var(--green-dark); color: #fff; }
+.detail-header h2 { font-size: 17px; font-weight: normal; }
+.detail-header .alt { font-size: 12px; opacity: 0.7; margin-top: 3px; font-style: italic; }
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; }
+.detail-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
+.detail-card .label { font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 4px; }
+.detail-card .val { font-size: 16px; color: var(--text); }
+.detail-card.green .val { color: var(--green); }
+.detail-card.amber .val { color: var(--amber); }
+.comment-box { margin: 0 12px 12px; padding: 10px 12px; background: var(--blue-light); border-left: 3px solid var(--blue); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.comment-box .label { font-size: 9px; color: var(--blue); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 4px; }
+.comment-box .text { font-size: 12px; color: var(--text2); line-height: 1.5; font-style: italic; }
+.detail-actions { display: flex; gap: 8px; padding: 0 12px 12px; }
+.btn { padding: 8px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 12px; cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 5px; }
+.btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.btn.danger { color: var(--red); border-color: #f5c0c0; }
+.btn.primary { background: var(--green-dark); color: #fff; border-color: var(--green-dark); }
+.section-title { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; padding: 14px 16px 6px; }
+.rando-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--border); cursor: pointer; }
+.rando-item:hover { background: var(--surface2); }
+.rando-item.active-rando { border-left: 3px solid var(--green); }
+.rando-name { font-size: 14px; color: var(--text); }
+.rando-meta { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.add-rando { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 16px; color: var(--green); font-size: 13px; cursor: pointer; border: 1.5px dashed var(--green); border-radius: var(--radius); margin: 12px 16px; background: none; font-family: inherit; }
+.add-rando svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.form-section { background: var(--surface); margin-bottom: 8px; }
+.form-section-title { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; padding: 10px 16px 6px; border-bottom: 1px solid var(--border); }
+.form-row { display: flex; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border); gap: 10px; }
+.form-row:last-child { border-bottom: none; }
+.form-label { font-size: 12px; color: var(--text); flex: 1; min-width: 0; }
+.form-label small { display: block; font-size: 10px; color: var(--text3); margin-top: 1px; }
+.form-input { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; font-size: 13px; background: var(--surface); color: var(--text); font-family: inherit; text-align: right; }
+.form-input:focus { outline: none; border-color: var(--green); }
+.form-input.wide { width: 100%; text-align: left; }
+.form-input.med { width: 90px; }
+.form-input.sm { width: 70px; }
+textarea.form-input { resize: vertical; min-height: 60px; text-align: left; }
+.mode-toggle { display: flex; gap: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.mode-toggle button { flex: 1; padding: 8px 6px; border: none; background: var(--surface); color: var(--text2); font-size: 12px; font-family: inherit; cursor: pointer; }
+.mode-toggle button.active { background: var(--green-dark); color: #fff; }
+.mode-toggle button:disabled { opacity: 0.4; cursor: not-allowed; }
+.mode-locked-note { font-size: 10px; color: var(--amber); padding: 4px 16px 0; font-style: italic; }
+.toggle-row { display: flex; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border); gap: 10px; }
+.toggle-label { flex: 1; font-size: 12px; color: var(--text); }
+.toggle { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+.toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+.toggle-slider { position: absolute; cursor: pointer; inset: 0; background: var(--border); border-radius: 11px; transition: 0.2s; }
+.toggle-slider:before { content: ''; position: absolute; width: 18px; height: 18px; left: 2px; top: 2px; background: #fff; border-radius: 50%; transition: 0.2s; }
+.toggle input:checked + .toggle-slider { background: var(--green); }
+.toggle input:checked + .toggle-slider:before { transform: translateX(18px); }
+.form-actions { padding: 12px 16px; display: flex; gap: 8px; }
+.params-screen { padding-bottom: 20px; }
+.param-reset { font-size: 11px; color: var(--green); text-align: center; padding: 8px; cursor: pointer; }
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200; align-items: flex-end; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--surface); border-radius: var(--radius) var(--radius) 0 0; width: 100%; max-width: 480px; margin: 0 auto; padding-bottom: env(safe-area-inset-bottom, 10px); max-height: 90vh; overflow-y: auto; }
+.modal-title { font-size: 15px; padding: 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text3); padding: 0 4px; }
+.dminus-total-box { margin: 12px 16px; padding: 10px 12px; background: var(--amber-light); border-left: 3px solid var(--amber); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.dminus-total-box .label { font-size: 10px; color: var(--amber); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
+.dminus-total-row { display: flex; align-items: center; gap: 8px; }
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 24px; text-align: center; gap: 12px; flex: 1; }
+.empty-state svg { width: 48px; height: 48px; stroke: var(--text3); fill: none; stroke-width: 1; stroke-linecap: round; stroke-linejoin: round; }
+.empty-state p { font-size: 14px; color: var(--text3); line-height: 1.6; }
+.no-points { padding: 24px 16px; text-align: center; color: var(--text3); font-size: 13px; font-style: italic; }
+.add-point-btns { display: flex; gap: 8px; margin: 10px 16px; }
+.add-point-btn { display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1; padding: 10px; border: 1.5px dashed var(--green); border-radius: var(--radius); background: none; color: var(--green); font-size: 13px; cursor: pointer; font-family: inherit; }
+.add-point-btn.pause { border-color: var(--amber); color: var(--amber); }
+.add-point-btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+/* Toast */
+.toast-wrap { position: fixed; left: 0; right: 0; bottom: 76px; display: flex; justify-content: center; z-index: 400; pointer-events: none; padding: 0 16px; }
+.toast { background: var(--green-dark); color: #fff; padding: 12px 16px; border-radius: var(--radius); max-width: 420px; width: 100%; box-shadow: 0 4px 16px rgba(0,0,0,0.25); opacity: 0; transform: translateY(12px); transition: opacity 0.2s, transform 0.2s; pointer-events: none; }
+.toast.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.toast.error { background: #6e1717; }
+.toast .toast-head { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.7; margin-bottom: 3px; }
+.toast .toast-msg { font-size: 13px; line-height: 1.4; }
+/* Confirm dialog */
+.confirm-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 500; align-items: center; justify-content: center; padding: 24px; }
+.confirm-overlay.open { display: flex; }
+.confirm-box { background: var(--surface); border-radius: var(--radius); max-width: 360px; width: 100%; overflow: hidden; }
+.confirm-head { background: var(--green-dark); color: #fff; padding: 12px 16px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+.confirm-body { padding: 18px 16px; font-size: 14px; color: var(--text); line-height: 1.5; }
+.confirm-actions { display: flex; gap: 8px; padding: 0 16px 16px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="screen active" id="screen-marche">
+  <div id="marche-main">
+    <div class="topbar">
+      <div class="topbar-row">
+        <div>
+          <h1 id="rando-title-display">Aucune randonnée</h1>
+          <div class="sub" id="rando-sub-display">Créez ou sélectionnez une randonnée</div>
+        </div>
+        <button class="icon-btn" onclick="openEditRando()" title="Modifier">
+          <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="march-table">
+        <thead>
+          <tr>
+            <th class="cell-water"></th>
+            <th style="text-align:left">Point</th>
+            <th>Tronçon<br>km</th>
+            <th>HMin/HMax</th>
+            <th>D+ / D−</th>
+          </tr>
+        </thead>
+        <tbody id="march-tbody"></tbody>
+      </table>
+    </div>
+    <div id="dminus-total-section" style="display:none">
+      <div class="dminus-total-box">
+        <div class="label">D− total du parcours (optionnel)</div>
+        <div class="dminus-total-row">
+          <input type="number" class="form-input" id="dminus-total-input" placeholder="ex: 450" min="0" oninput="onDMinusTotalChange()" style="width:100px; text-align:right">
+          <span style="font-size:11px; color:var(--text2)">m — redistribué proportionnellement</span>
+        </div>
+      </div>
+    </div>
+    <div class="summary" id="summary-section" style="display:none">
+      <div class="stat-card"><div class="stat-label">Distance</div><div class="stat-value" id="sum-dist">—</div><span class="stat-unit">km</span></div>
+      <div class="stat-card"><div class="stat-label">Km effort</div><div class="stat-value" id="sum-effort">—</div><span class="stat-unit">km</span></div>
+      <div class="stat-card"><div class="stat-label">D+ total</div><div class="stat-value" id="sum-dplus">—</div><span class="stat-unit">m</span></div>
+      <div class="stat-card"><div class="stat-label">D− total</div><div class="stat-value" id="sum-dminus">—</div><span class="stat-unit">m</span></div>
+    </div>
+    <div class="add-point-btns">
+      <button class="add-point-btn" onclick="openAddPoint()">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Point
+      </button>
+      <button class="add-point-btn pause" onclick="openAddPause()">
+        <svg viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor" stroke="none"/></svg>
+        Pause
+      </button>
+    </div>
+  </div>
+  <div class="detail-panel" id="detail-panel">
+    <div class="detail-back" onclick="closeDetail()">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      Retour au tableau
+    </div>
+    <div class="detail-header">
+      <h2 id="detail-name"></h2>
+      <div class="alt" id="detail-alt"></div>
+    </div>
+    <div class="detail-grid" id="detail-grid"></div>
+    <div id="detail-comment-box"></div>
+    <div class="detail-actions">
+      <button class="btn" onclick="editCurrentPoint()">
+        <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Modifier
+      </button>
+      <button class="btn danger" onclick="deleteCurrentPoint()">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        Supprimer
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="screen-randos">
+  <div class="topbar">
+    <div class="topbar-row">
+      <h1 style="color:#fff; font-size:17px; font-weight:normal">Mes randonnées</h1>
+      <button class="icon-btn" onclick="openNewRando()">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+  <div id="rando-list-container"></div>
+  <button class="add-rando" onclick="openNewRando()">
+    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Nouvelle randonnée
+  </button>
+</div>
+
+<div class="screen params-screen" id="screen-params">
+  <div class="topbar">
+    <h1 style="color:#fff; font-size:17px; font-weight:normal">Paramètres</h1>
+  </div>
+  <div class="form-section" style="margin-top:8px">
+    <div class="form-section-title">Vitesses par défaut (nouvelles randonnées)</div>
+    <div class="form-row">
+      <div class="form-label">Vitesse plat<small>km/h</small></div>
+      <input class="form-input sm" type="number" id="p-vplat" step="0.1" min="0.5" max="20" value="4.2" onchange="saveGlobalParams()">
+    </div>
+    <div class="form-row">
+      <div class="form-label">Dénivelé positif<small>m/h</small></div>
+      <input class="form-input sm" type="number" id="p-vdplus" step="10" min="50" max="2000" value="400" onchange="saveGlobalParams()">
+    </div>
+    <div class="form-row">
+      <div class="form-label">Dénivelé négatif<small>m/h</small></div>
+      <input class="form-input sm" type="number" id="p-vdminus" step="10" min="50" max="2000" value="600" onchange="saveGlobalParams()">
+    </div>
+    <div class="param-reset" onclick="resetGlobalParams()">Réinitialiser aux valeurs par défaut</div>
+  </div>
+  <div class="form-section">
+    <div class="form-section-title">Sauvegarde &amp; restauration</div>
+    <div style="padding:10px 16px 4px; font-size:11px; color:var(--text3); line-height:1.5">Exportez vos randonnées dans un fichier pour les sauvegarder ou les transférer.</div>
+    <div class="form-row" style="gap:8px">
+      <button class="btn primary" onclick="exportData()" style="flex:1">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Exporter
+      </button>
+      <button class="btn" onclick="document.getElementById('import-input').click()" style="flex:1">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Importer
+      </button>
+      <input type="file" id="import-input" accept=".json" style="display:none" onchange="importData(event)">
+    </div>
+    <div id="import-status" style="padding:0 16px 10px; font-size:11px; color:var(--green); display:none"></div>
+  </div>
+</div>
+
+<div class="screen" id="screen-presence">
+  <div class="topbar">
+    <h1 style="color:#fff; font-size:17px; font-weight:normal">Présence & médical</h1>
+  </div>
+  <div id="presence-norando" class="no-points" style="padding:24px 16px; display:none">
+    Aucune randonnée sélectionnée.
+  </div>
+  <div id="presence-nodate" class="no-points" style="padding:24px 16px; display:none">
+    Renseignez d'abord une <strong>date de début</strong> dans la fiche de la randonnée pour pouvoir charger les participants.
+  </div>
+  <div id="presence-content" style="display:none">
+    <div style="padding:14px 16px">
+      <div id="presence-rando-name" style="font-size:13px; color:var(--text2); margin-bottom:12px"></div>
+      <button class="btn primary" style="width:100%" onclick="document.getElementById('participants-input').click()">
+        <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+        Charger participants
+      </button>
+      <input type="file" id="participants-input" accept=".json" style="display:none" onchange="loadParticipants(event)">
+      <div id="presence-count" style="margin-top:14px; font-size:13px; color:var(--text); display:none"></div>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-nav">
+  <button class="nav-btn active" id="nav-marche" onclick="showScreen('marche')">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    Marche
+  </button>
+  <button class="nav-btn" id="nav-randos" onclick="showScreen('randos')">
+    <svg viewBox="0 0 24 24"><path d="M3 17l4-8 4 4 4-6 4 10"/><path d="M3 20h18"/></svg>
+    Randos
+  </button>
+  <button class="nav-btn" id="nav-presence" onclick="showScreen('presence')">
+    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    Présence
+  </button>
+  <button class="nav-btn" id="nav-params" onclick="showScreen('params')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    Paramètres
+  </button>
+</div>
+</div>
+
+<!-- MODAL RANDO -->
+<div class="modal-overlay" id="modal-rando">
+  <div class="modal">
+    <div class="modal-title">
+      <span id="modal-rando-title">Nouvelle randonnée</span>
+      <button class="modal-close" onclick="closeModal('modal-rando')">×</button>
+    </div>
+    <div class="form-section" style="margin-top:0">
+      <div class="form-row">
+        <div class="form-label">Nom</div>
+        <input class="form-input wide" type="text" id="f-nom" placeholder="ex: Tour des Fagnes" style="flex:2">
+      </div>
+      <div class="form-row">
+        <div class="form-label">Carte(s)</div>
+        <input class="form-input wide" type="text" id="f-cartes" placeholder="ex: IGN 1:25000 L52" style="flex:2">
+      </div>
+      <div class="form-row">
+        <div class="form-label">Lieu de départ</div>
+        <input class="form-input wide" type="text" id="f-depart" placeholder="Lieu de départ" style="flex:2">
+      </div>
+      <div class="form-row">
+        <div class="form-label">Lieu d'arrivée<small>= départ si vide</small></div>
+        <input class="form-input wide" type="text" id="f-arrivee" placeholder="Lieu d'arrivée" style="flex:2">
+      </div>
+      <div class="form-row">
+        <div class="form-label">Heure de départ</div>
+        <input class="form-input" type="time" id="f-heure" value="08:00">
+      </div>
+      <div class="form-row">
+        <div class="form-label">▲ Altitude de départ<small>m · informatif</small></div>
+        <input class="form-input med" type="number" id="f-altdepart" placeholder="0" step="1">
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">Type & dates de sortie</div>
+      <div style="padding:10px 16px 0">
+        <div class="mode-toggle">
+          <button type="button" id="type-journee" onclick="setSortieType('journee')">Journée</button>
+          <button type="button" id="type-voyage" onclick="setSortieType('voyage')">Voyage</button>
+          <button type="button" id="type-ultra" onclick="setSortieType('ultra')">Ultra</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-label">Date de début<small>obligatoire</small></div>
+        <input class="form-input" type="date" id="f-datedebut">
+      </div>
+      <div class="form-row">
+        <div class="form-label">Date de fin<small>option · séjour</small></div>
+        <input class="form-input" type="date" id="f-datefin">
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">Mode de saisie des points</div>
+      <div style="padding:10px 16px">
+        <div class="mode-toggle">
+          <button type="button" id="mode-cumule" onclick="setSaisieMode('cumule')">Cumulé</button>
+          <button type="button" id="mode-troncon" onclick="setSaisieMode('troncon')">Tronçon</button>
+        </div>
+        <div id="mode-locked" class="mode-locked-note" style="display:none">Mode verrouillé : des points existent déjà.</div>
+        <div style="font-size:10px; color:var(--text3); margin-top:6px; line-height:1.4">Cumulé = valeurs depuis le départ (appli de traçage). Tronçon = valeurs par segment (mesure sur carte).</div>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">Vitesses</div>
+      <div class="form-row">
+        <div class="form-label">Vitesse plat<small>km/h — défaut paramètres</small></div>
+        <input class="form-input sm" type="number" id="f-vplat" step="0.1" min="0.5" max="20">
+      </div>
+      <div class="form-row">
+        <div class="form-label">Dénivelé positif<small>m/h</small></div>
+        <input class="form-input sm" type="number" id="f-vdplus" step="10" min="50" max="2000">
+      </div>
+      <div class="form-row">
+        <div class="form-label">Dénivelé négatif<small>m/h</small></div>
+        <input class="form-input sm" type="number" id="f-vdminus" step="10" min="50" max="2000">
+      </div>
+      <div class="form-row">
+        <div class="form-label">Commentaire</div>
+        <textarea class="form-input wide" id="f-comment" placeholder="RDV, parking, contact..." rows="2" style="flex:2"></textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn primary" onclick="saveRando()" style="flex:1">Enregistrer</button>
+      <button class="btn" onclick="closeModal('modal-rando')" style="flex:1">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL POINT -->
+<div class="modal-overlay" id="modal-point">
+  <div class="modal">
+    <div class="modal-title">
+      <span id="modal-point-title">Nouveau point</span>
+      <button class="modal-close" onclick="closeModal('modal-point')">×</button>
+    </div>
+    <div class="form-section" style="margin-top:0">
+      <div class="form-row">
+        <div class="form-label">Nom du point</div>
+        <input class="form-input wide" type="text" id="pt-nom" placeholder="ex: Col du Botrange" style="flex:2">
+      </div>
+      <div class="form-row">
+        <div class="form-label" id="lbl-dist">Distance cumulée<small>km depuis le départ</small></div>
+        <input class="form-input med" type="number" id="pt-dist" placeholder="0.0" step="0.1" min="0">
+      </div>
+      <div class="form-row">
+        <div class="form-label">▲ Altitude<small>m du point (absolue)</small></div>
+        <input class="form-input med" type="number" id="pt-alt" placeholder="0" step="1">
+      </div>
+      <div class="form-row">
+        <div class="form-label" id="lbl-dplus">Cumul D+<small>m depuis le départ</small></div>
+        <input class="form-input med" type="number" id="pt-dplus" placeholder="0" step="1" min="0">
+      </div>
+      <div class="form-row">
+        <div class="form-label" id="lbl-dminus">Cumul D−<small>m · optionnel</small></div>
+        <input class="form-input med" type="number" id="pt-dminus" placeholder="—" step="1" min="0">
+      </div>
+      <div class="form-row">
+        <div class="form-label">🧭 Azimut to<small>cap 0-360° vers le suivant</small></div>
+        <input class="form-input med" type="number" id="pt-azimut" placeholder="—" step="1" min="0" max="359">
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-label">Point d'eau 💧</div>
+        <label class="toggle">
+          <input type="checkbox" id="pt-water">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="form-row">
+        <div class="form-label">Commentaire</div>
+        <textarea class="form-input wide" id="pt-comment" placeholder="Info utile sur ce point..." rows="2" style="flex:2"></textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn primary" onclick="savePoint()" style="flex:1">Enregistrer</button>
+      <button class="btn" onclick="closeModal('modal-point')" style="flex:1">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PAUSE -->
+<div class="modal-overlay" id="modal-pause">
+  <div class="modal">
+    <div class="modal-title">
+      <span id="modal-pause-title">Nouvelle pause</span>
+      <button class="modal-close" onclick="closeModal('modal-pause')">×</button>
+    </div>
+    <div class="form-section" style="margin-top:0">
+      <div class="form-row">
+        <div class="form-label">Nom de la pause</div>
+        <input class="form-input wide" type="text" id="pause-nom" placeholder="ex: Pause déjeuner" style="flex:2">
+      </div>
+      <div class="form-row">
+        <div class="form-label">Durée<small>minutes</small></div>
+        <input class="form-input med" type="number" id="pause-duree" placeholder="30" step="5" min="0">
+      </div>
+      <div class="form-row">
+        <div class="form-label">Commentaire</div>
+        <textarea class="form-input wide" id="pause-comment" placeholder="Info utile..." rows="2" style="flex:2"></textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn primary" onclick="savePause()" style="flex:1">Enregistrer</button>
+      <button class="btn" onclick="closeModal('modal-pause')" style="flex:1">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var state = {
+  randos: [], activeRandoId: null,
+  globalParams: { vplat: 4.2, vdplus: 400, vdminus: 600 },
+  editingRandoId: null, editingPointIdx: null, detailPointIdx: null,
+  formSaisieMode: 'cumule', formSortieType: 'journee'
+};
+
+function load() {
+  try {
+    var s = localStorage.getItem('odm_state');
+    if (s) {
+      var p = JSON.parse(s);
+      state.randos = p.randos || [];
+      state.activeRandoId = p.activeRandoId || null;
+      state.globalParams = p.globalParams || { vplat: 4.2, vdplus: 400, vdminus: 600 };
+      state.randos.forEach(function(r) {
+        if (r.days && !r.points) {
+          r.points = (r.days[0] && r.days[0].points) ? r.days[0].points : [];
+          r.heure = (r.days[0] && r.days[0].heure) ? r.days[0].heure : '08:00';
+          r.dminusTotal = (r.days[0] && r.days[0].dminusTotal) ? r.days[0].dminusTotal : null;
+          delete r.days;
+        }
+        if (!r.points) r.points = [];
+        if (!r.heure) r.heure = '08:00';
+        if (!r.saisieMode) r.saisieMode = 'cumule';
+        if (r.altDepart === undefined) r.altDepart = 0;
+        if (r.sortieType === undefined) r.sortieType = 'journee';
+        if (r.dateDebut === undefined) r.dateDebut = null;
+        if (r.dateFin === undefined) r.dateFin = null;
+        if (!r.params) r.params = { vplat: state.globalParams.vplat, vdplus: state.globalParams.vdplus, vdminus: state.globalParams.vdminus };
+      });
+    }
+  } catch(e) {}
+}
+
+function save() {
+  try { localStorage.setItem('odm_state', JSON.stringify({ randos: state.randos, activeRandoId: state.activeRandoId, globalParams: state.globalParams })); } catch(e) {}
+}
+
+function getActiveRando() { return state.randos.find(function(r){ return r.id === state.activeRandoId; }) || null; }
+function getParams(rando) { return (rando && rando.params) ? rando.params : state.globalParams; }
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function fmt2(n) { return n < 10 ? '0'+n : ''+n; }
+function fmtTime(h) {
+  var hh = Math.floor(h), mm = Math.round((h - hh) * 60);
+  if (mm === 60) { hh++; mm = 0; }
+  return fmt2(hh) + 'h' + fmt2(mm);
+}
+function fmtHm(h) {
+  var hh = Math.floor(h), mm = Math.round((h - hh) * 60);
+  if (mm === 60) { hh++; mm = 0; }
+  if (hh > 0) return hh + 'h' + fmt2(mm);
+  return mm + ' min';
+}
+function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// Convert stored points (which may be troncon-mode) into cumulative absolute points for calc.
+// In troncon mode: pt.dist/dplus/dminus are SEGMENT values. We build cumulative on the fly.
+// Pause points (type:'pause') are passed through and excluded from distance math.
+function buildCumulative(rando) {
+  var pts = rando.points || [];
+  var out = [];
+  var cumDist = 0, cumDplus = 0, cumDminus = 0;
+  var anyDminus = false;
+  for (var i = 0; i < pts.length; i++) {
+    var p = pts[i];
+    if (p.type === 'pause') { out.push({ type:'pause', nom:p.nom, duree:p.duree, comment:p.comment, _storeIdx:i }); continue; }
+    if (rando.saisieMode === 'troncon') {
+      cumDist += (p.dist || 0);
+      cumDplus += (p.dplus || 0);
+      var segDm = (p.dminus !== null && p.dminus !== undefined && p.dminus !== '') ? (p.dminus || 0) : null;
+      if (segDm !== null) { cumDminus += segDm; anyDminus = true; }
+      out.push({ nom: p.nom, alt: p.alt, dist: cumDist, dplus: cumDplus, dminus: (segDm !== null ? cumDminus : null), water: p.water, azimut: p.azimut, comment: p.comment, _storeIdx: i });
+    } else {
+      out.push({ nom: p.nom, alt: p.alt, dist: p.dist, dplus: p.dplus, dminus: p.dminus, water: p.water, azimut: p.azimut, comment: p.comment, _storeIdx: i });
+    }
+  }
+  return out;
+}
+
+// Compute marche over a sequence that includes pause rows.
+// Real (non-pause) points carry cumulative dist/dplus/dminus.
+function calcMarche(seq, heureDepart, params, dminusTotal) {
+  var results = [];
+  var tCumul = 0, tCumulMax = 0;
+  var pauseAccum = 0;
+  var realPts = seq.filter(function(p){ return p.type !== 'pause'; });
+  var totalDist = realPts.length > 0 ? realPts[realPts.length-1].dist : 0;
+  var prevReal = null;
+  for (var i = 0; i < seq.length; i++) {
+    var p = seq[i];
+    if (p.type === 'pause') {
+      pauseAccum += (p.duree || 0) / 60;
+      results.push({ isPause: true, nom: p.nom, duree: p.duree, comment: p.comment, _storeIdx: p._storeIdx });
+      continue;
+    }
+    if (prevReal === null) {
+      results.push({ isPause: false, ref: p, hmin: heureDepart, hmax: heureDepart, tSeg: 0, tSegMax: 0, tCumul: 0, tCumulMax: 0, ddplus: 0, ddminus: 0, sup: 0, sdown: 0 });
+      prevReal = p;
+      continue;
+    }
+    var dkm = p.dist - prevReal.dist;
+    var ddplus = (p.dplus||0) - (prevReal.dplus||0);
+    var hasDm = p.dminus !== null && p.dminus !== undefined && p.dminus !== '';
+    var useDmTotal = !hasDm && dminusTotal && dminusTotal > 0 && totalDist > 0;
+    var ddminus = 0;
+    if (hasDm) ddminus = Math.max(0, (p.dminus||0) - (prevReal.dminus||0));
+    else if (useDmTotal) ddminus = dkm / totalDist * dminusTotal;
+    var t = (dkm / params.vplat) + (ddplus / params.vdplus) + (ddminus / params.vdminus);
+    var sup = dkm > 0 ? ddplus / (dkm * 1000) * 100 : 0;
+    var sdown = dkm > 0 ? ddminus / (dkm * 1000) * 100 : 0;
+    tCumul += t; tCumulMax += t * 1.15;
+    results.push({ isPause: false, ref: p, hmin: heureDepart + tCumul + pauseAccum, hmax: heureDepart + tCumulMax + pauseAccum, tSeg: t, tSegMax: t*1.15, tCumul: tCumul, tCumulMax: tCumulMax, ddplus: ddplus, ddminus: ddminus, dkm: dkm, sup: sup, sdown: sdown });
+    prevReal = p;
+  }
+  return results;
+}
+
+function hasDminusData(cumPts) {
+  return cumPts.some(function(p){ return p.type !== 'pause' && p.dminus !== null && p.dminus !== undefined && p.dminus !== ''; });
+}
+
+function renderMarche() {
+  var rando = getActiveRando();
+  var titleEl = document.getElementById('rando-title-display');
+  var subEl = document.getElementById('rando-sub-display');
+  if (!rando) {
+    titleEl.textContent = 'Aucune randonnée';
+    subEl.textContent = 'Créez ou sélectionnez une randonnée';
+    document.getElementById('march-tbody').innerHTML = '<tr><td colspan="5"><div class="no-points">Aucune randonnée sélectionnée</div></td></tr>';
+    document.getElementById('summary-section').style.display = 'none';
+    document.getElementById('dminus-total-section').style.display = 'none';
+    return;
+  }
+  titleEl.textContent = rando.nom || 'Sans nom';
+  var arrivee = rando.arrivee || rando.depart || '';
+  subEl.textContent = 'Départ ' + (rando.heure||'08:00').replace(':','h') + ' · ' + (rando.depart||'—') + (arrivee && arrivee !== rando.depart ? ' → ' + arrivee : '');
+  var hp = (rando.heure||'08:00').split(':');
+  var heureDepart = parseInt(hp[0]) + parseInt(hp[1])/60;
+  var params = getParams(rando);
+  var cumPts = buildCumulative(rando);
+  var hasDm = hasDminusData(cumPts);
+  var dminusTotal = rando.dminusTotal || null;
+  if (!hasDm) {
+    document.getElementById('dminus-total-section').style.display = 'block';
+    document.getElementById('dminus-total-input').value = dminusTotal || '';
+  } else {
+    document.getElementById('dminus-total-section').style.display = 'none';
+  }
+  var realPts = cumPts.filter(function(p){ return p.type !== 'pause'; });
+  var startPt = { nom: rando.depart||'Départ', dist: 0, alt: rando.altDepart||0, dplus: 0, dminus: 0 };
+  var seq = [startPt].concat(cumPts);
+  var calcs = calcMarche(seq, heureDepart, params, hasDm ? null : dminusTotal);
+  var html = '';
+  for (var i = 0; i < calcs.length; i++) {
+    var c = calcs[i];
+    if (c.isPause) {
+      html += '<tr class="pause-point" onclick="openDetailPause(' + c._storeIdx + ')">';
+      html += '<td class="cell-water"><svg width="13" height="13" viewBox="0 0 24 24" style="vertical-align:middle"><rect x="6" y="4" width="4" height="16" rx="1" fill="#BA7517"/><rect x="14" y="4" width="4" height="16" rx="1" fill="#BA7517"/></svg></td>';
+      html += '<td><div class="cell-name" style="color:#633806">' + escHtml(c.nom||'Pause') + '</div><div class="cell-sub" style="color:#854F0B">Pause · ' + (c.duree||0) + ' min</div></td>';
+      html += '<td class="cell-dval" style="color:var(--text3)">—</td>';
+      html += '<td class="cell-dval" style="color:var(--text3)">—</td>';
+      html += '<td class="cell-dval" style="color:var(--text3)">—</td>';
+      html += '</tr>';
+      continue;
+    }
+    var p = c.ref;
+    var isD = i === 0;
+    var rc = isD ? 'depart' : (p.water ? 'water-point' : '');
+    var wc = (!isD && p.water) ? '💧' : '';
+    var dp = '<span style="color:var(--green-dark); font-size:11px">+' + Math.round(c.ddplus) + '</span><br><span style="color:var(--text3); font-size:10px">−' + Math.round(c.ddminus) + '</span>';
+    var sub = (p.dist||0).toFixed(1) + ' km · ▲ ' + (p.alt||0) + ' m';
+    if (!isD && p.azimut !== null && p.azimut !== undefined && p.azimut !== '') sub += ' · 🧭 ' + p.azimut + '°';
+    html += '<tr class="' + rc + '"' + (!isD ? ' onclick="openDetail(' + p._storeIdx + ')"' : '') + '>';
+    html += '<td class="cell-water">' + wc + '</td>';
+    html += '<td><div class="cell-name">' + escHtml(p.nom||'—') + '</div><div class="cell-sub">' + sub + '</div></td>';
+    var tronCell = isD ? '—' : (c.dkm||0).toFixed(1);
+    html += '<td class="cell-dval">' + tronCell + '</td>';
+    var hours = '<span style="color:var(--green); font-weight:bold; font-size:12px">' + fmtTime(c.hmin) + '</span><br><span style="color:var(--amber); font-size:11px">' + fmtTime(c.hmax) + '</span>';
+    html += '<td style="text-align:center; white-space:nowrap">' + hours + '</td>';
+    html += '<td class="cell-dval">' + dp + '</td>';
+    html += '</tr>';
+  }
+  if ((rando.points||[]).length === 0) html += '<tr><td colspan="5"><div class="no-points">Aucun point — ajoutez-en ci-dessous</div></td></tr>';
+  document.getElementById('march-tbody').innerHTML = html;
+  var totalDist = realPts.length > 0 ? realPts[realPts.length-1].dist : 0;
+  var totalDplus = realPts.length > 0 ? (realPts[realPts.length-1].dplus||0) : 0;
+  var totalDminus = hasDm ? (realPts[realPts.length-1].dminus||0) : (dminusTotal||0);
+  var effort = totalDist + totalDplus/100 + totalDminus/1000;
+  document.getElementById('sum-dist').textContent = totalDist.toFixed(1);
+  document.getElementById('sum-effort').textContent = effort.toFixed(1);
+  document.getElementById('sum-dplus').textContent = Math.round(totalDplus);
+  document.getElementById('sum-dminus').textContent = Math.round(totalDminus);
+  document.getElementById('summary-section').style.display = 'grid';
+}
+
+// Map a cumulative real point back to its index in rando.points (by identity of order)
+function findRealStoreIdx(rando, cumPoint) {
+  return (cumPoint && cumPoint._storeIdx !== undefined) ? cumPoint._storeIdx : 0;
+}
+
+function findPauseStoreIdx(rando, calcIdx, seq) {
+  var seqItem = seq[calcIdx];
+  return (seqItem && seqItem._storeIdx !== undefined) ? seqItem._storeIdx : 0;
+}
+
+function openDetail(storeIdx) {
+  var rando = getActiveRando(); if (!rando) return;
+  var pts = rando.points || [];
+  var p = pts[storeIdx]; if (!p || p.type === 'pause') return;
+  state.detailPointIdx = storeIdx;
+  var params = getParams(rando);
+  var hp = (rando.heure||'08:00').split(':');
+  var heureDepart = parseInt(hp[0]) + parseInt(hp[1])/60;
+  var cumPts = buildCumulative(rando);
+  var hasDm = hasDminusData(cumPts);
+  var startPt = { nom: rando.depart||'Départ', dist: 0, alt: rando.altDepart||0, dplus: 0, dminus: 0 };
+  var seq = [startPt].concat(cumPts);
+  var calcs = calcMarche(seq, heureDepart, params, hasDm ? null : (rando.dminusTotal||null));
+  // find calc entry matching this exact store index
+  var c = null, pcum = null;
+  for (var i = 1; i < calcs.length; i++) {
+    if (calcs[i].isPause) continue;
+    if (calcs[i].ref && calcs[i].ref._storeIdx === storeIdx) { c = calcs[i]; pcum = calcs[i].ref; break; }
+  }
+  if (!c) return;
+  document.getElementById('detail-name').textContent = p.nom || '—';
+  var altLine = (pcum.dist||0).toFixed(1) + ' km cumulés · ▲ ' + (p.alt||0) + ' m altitude';
+  if (p.azimut !== null && p.azimut !== undefined && p.azimut !== '') altLine += ' · 🧭 ' + p.azimut + '°';
+  document.getElementById('detail-alt').textContent = altLine;
+  var cards = [
+    { label: 'Heure min', val: fmtTime(c.hmin), cls: 'green' },
+    { label: 'Heure max', val: fmtTime(c.hmax), cls: 'amber' },
+    { label: 'Temps étape', val: fmtHm(c.tSeg), cls: '' },
+    { label: 'Temps total', val: fmtHm(c.tCumul), cls: '' },
+    { label: 'D+ étape', val: '+' + Math.round(c.ddplus) + ' m', cls: '' },
+    { label: 'D− étape', val: '−' + Math.round(c.ddminus) + ' m', cls: '' },
+    { label: 'Pente montée', val: c.sup.toFixed(1) + ' %', cls: '' },
+    { label: 'Pente descente', val: c.sdown.toFixed(1) + ' %', cls: '' }
+  ];
+  document.getElementById('detail-grid').innerHTML = cards.map(function(cd){ return '<div class="detail-card ' + cd.cls + '"><div class="label">' + cd.label + '</div><div class="val">' + cd.val + '</div></div>'; }).join('');
+  document.getElementById('detail-comment-box').innerHTML = p.comment ? '<div class="comment-box"><div class="label">Commentaire</div><div class="text">' + escHtml(p.comment) + '</div></div>' : '';
+  document.getElementById('marche-main').style.display = 'none';
+  document.getElementById('detail-panel').classList.add('active');
+}
+
+function openDetailPause(storeIdx) {
+  var rando = getActiveRando(); if (!rando) return;
+  var p = (rando.points||[])[storeIdx]; if (!p || p.type !== 'pause') return;
+  state.detailPointIdx = storeIdx;
+  document.getElementById('detail-name').textContent = p.nom || 'Pause';
+  document.getElementById('detail-alt').textContent = 'Pause · ' + (p.duree||0) + ' minutes';
+  var canUp = canMovePause(rando, storeIdx, -1);
+  var canDown = canMovePause(rando, storeIdx, 1);
+  var moveHtml = '<div class="detail-card amber"><div class="label">Durée</div><div class="val">' + (p.duree||0) + ' min</div></div>'
+    + '<div class="detail-card"><div class="label">Déplacer la pause</div><div style="display:flex; gap:8px; margin-top:6px">'
+    + '<button class="btn" ' + (canUp?'':'disabled') + ' onclick="movePause(-1)" style="flex:1; justify-content:center; ' + (canUp?'':'opacity:0.4') + '"><svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><polyline points="18 15 12 9 6 15"/></svg></button>'
+    + '<button class="btn" ' + (canDown?'':'disabled') + ' onclick="movePause(1)" style="flex:1; justify-content:center; ' + (canDown?'':'opacity:0.4') + '"><svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><polyline points="6 9 12 15 18 9"/></svg></button>'
+    + '</div></div>';
+  document.getElementById('detail-grid').innerHTML = moveHtml;
+  document.getElementById('detail-comment-box').innerHTML = p.comment ? '<div class="comment-box"><div class="label">Commentaire</div><div class="text">' + escHtml(p.comment) + '</div></div>' : '';
+  document.getElementById('marche-main').style.display = 'none';
+  document.getElementById('detail-panel').classList.add('active');
+}
+
+// Check if a pause at storeIdx can move by dir (-1 up, +1 down) while keeping
+// at least one real POI between départ and the pause, and at least one real POI after.
+function canMovePause(rando, storeIdx, dir) {
+  var pts = rando.points || [];
+  var target = storeIdx + dir;
+  if (target < 0 || target >= pts.length) return false;
+  // Simulate the swap and validate constraints
+  var sim = pts.slice();
+  var tmp = sim[storeIdx]; sim[storeIdx] = sim[target]; sim[target] = tmp;
+  return pauseArrangementValid(sim);
+}
+
+// Validate: first element before any pause must include >=1 real POI,
+// and there must be >=1 real POI after the last pause.
+function pauseArrangementValid(pts) {
+  var firstReal = -1, lastReal = -1, firstPause = -1, lastPause = -1;
+  for (var i = 0; i < pts.length; i++) {
+    var isPause = pts[i].type === 'pause';
+    if (isPause) { if (firstPause === -1) firstPause = i; lastPause = i; }
+    else { if (firstReal === -1) firstReal = i; lastReal = i; }
+  }
+  if (firstPause === -1) return true; // no pauses
+  if (firstReal === -1) return false; // pauses but no real POI
+  if (firstPause < firstReal) return false; // a pause before the first real POI
+  if (lastPause > lastReal) return false; // a pause after the last real POI
+  return true;
+}
+
+function movePause(dir) {
+  var rando = getActiveRando(); if (!rando) return;
+  var storeIdx = state.detailPointIdx;
+  var pts = rando.points || [];
+  var target = storeIdx + dir;
+  if (target < 0 || target >= pts.length) return;
+  var sim = pts.slice();
+  var tmp = sim[storeIdx]; sim[storeIdx] = sim[target]; sim[target] = tmp;
+  if (!pauseArrangementValid(sim)) return;
+  rando.points = sim;
+  state.detailPointIdx = target;
+  save();
+  renderMarche();
+  openDetailPause(target);
+}
+
+function closeDetail() { document.getElementById('marche-main').style.display = ''; document.getElementById('detail-panel').classList.remove('active'); }
+function editCurrentPoint() {
+  var rando = getActiveRando();
+  var p = (rando.points||[])[state.detailPointIdx];
+  closeDetail();
+  if (p && p.type === 'pause') openAddPause(state.detailPointIdx);
+  else openAddPoint(state.detailPointIdx);
+}
+function deleteCurrentPoint() {
+  showConfirm('Supprimer cet élément ?', function() {
+    var rando = getActiveRando();
+    rando.points.splice(state.detailPointIdx, 1);
+    save(); closeDetail(); renderMarche();
+  }, 'Supprimer');
+}
+
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+  document.querySelectorAll('.nav-btn').forEach(function(b){ b.classList.remove('active'); });
+  document.getElementById('screen-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  if (name === 'params') renderParams();
+  if (name === 'randos') renderRandoList();
+  if (name === 'presence') renderPresence();
+  if (name === 'marche') { closeDetail(); renderMarche(); }
+}
+
+function renderRandoList() {
+  var c = document.getElementById('rando-list-container');
+  if (state.randos.length === 0) { c.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M3 17l4-8 4 4 4-6 4 10"/><path d="M3 20h18"/></svg><p>Aucune randonnée.<br>Créez-en une pour commencer.</p></div>'; return; }
+  var html = '<div class="section-title">Randonnées sauvegardées</div>';
+  state.randos.forEach(function(r) {
+    var isActive = r.id === state.activeRandoId;
+    var modeLabel = r.saisieMode === 'troncon' ? 'Tronçon' : 'Cumulé';
+    html += '<div class="rando-item' + (isActive ? ' active-rando' : '') + '" onclick="selectRando(\'' + r.id + '\')">';
+    html += '<div><div class="rando-name">' + escHtml(r.nom||'Sans nom') + '</div><div class="rando-meta">' + (r.depart ? escHtml(r.depart) : '—') + ' · ' + (r.heure||'08:00').replace(':','h') + ' · ' + modeLabel + '</div></div>';
+    html += '<div style="display:flex;gap:6px;align-items:center">';
+    html += '<button class="btn" onclick="event.stopPropagation();openEditRandoById(\'' + r.id + '\')" style="padding:5px 8px"><svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>';
+    html += '<button class="btn danger" onclick="event.stopPropagation();deleteRando(\'' + r.id + '\')" style="padding:5px 8px"><svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>';
+    html += '<svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:var(--text3);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><polyline points="9 18 15 12 9 6"/></svg>';
+    html += '</div></div>';
+  });
+  c.innerHTML = html;
+}
+
+function selectRando(id) { state.activeRandoId = id; save(); showScreen('marche'); }
+
+function setSaisieMode(mode) {
+  var rando = state.editingRandoId ? state.randos.find(function(r){ return r.id === state.editingRandoId; }) : null;
+  var locked = rando && (rando.points||[]).length > 0;
+  if (locked) return;
+  state.formSaisieMode = mode;
+  document.getElementById('mode-cumule').classList.toggle('active', mode === 'cumule');
+  document.getElementById('mode-troncon').classList.toggle('active', mode === 'troncon');
+}
+
+function refreshModeToggle(rando) {
+  var locked = rando && (rando.points||[]).length > 0;
+  document.getElementById('mode-cumule').disabled = locked;
+  document.getElementById('mode-troncon').disabled = locked;
+  document.getElementById('mode-locked').style.display = locked ? 'block' : 'none';
+  document.getElementById('mode-cumule').classList.toggle('active', state.formSaisieMode === 'cumule');
+  document.getElementById('mode-troncon').classList.toggle('active', state.formSaisieMode === 'troncon');
+}
+
+function setSortieType(t) {
+  state.formSortieType = t;
+  refreshSortieType();
+}
+
+function refreshSortieType() {
+  document.getElementById('type-journee').classList.toggle('active', state.formSortieType === 'journee');
+  document.getElementById('type-voyage').classList.toggle('active', state.formSortieType === 'voyage');
+  document.getElementById('type-ultra').classList.toggle('active', state.formSortieType === 'ultra');
+}
+
+function openNewRando() {
+  state.editingRandoId = null;
+  state.formSaisieMode = 'cumule';
+  state.formSortieType = 'journee';
+  document.getElementById('modal-rando-title').textContent = 'Nouvelle randonnée';
+  document.getElementById('f-nom').value = '';
+  document.getElementById('f-cartes').value = '';
+  document.getElementById('f-depart').value = '';
+  document.getElementById('f-arrivee').value = '';
+  document.getElementById('f-heure').value = '08:00';
+  document.getElementById('f-altdepart').value = '';
+  document.getElementById('f-datedebut').value = '';
+  document.getElementById('f-datefin').value = '';
+  document.getElementById('f-vplat').value = state.globalParams.vplat;
+  document.getElementById('f-vdplus').value = state.globalParams.vdplus;
+  document.getElementById('f-vdminus').value = state.globalParams.vdminus;
+  document.getElementById('f-comment').value = '';
+  refreshModeToggle(null);
+  refreshSortieType();
+  openModal('modal-rando');
+}
+
+function openEditRando() { var r = getActiveRando(); if (!r) return openNewRando(); openEditRandoById(r.id); }
+
+function openEditRandoById(id) {
+  var r = state.randos.find(function(x){ return x.id === id; }); if (!r) return;
+  state.editingRandoId = id;
+  state.formSaisieMode = r.saisieMode || 'cumule';
+  state.formSortieType = r.sortieType || 'journee';
+  document.getElementById('modal-rando-title').textContent = 'Modifier la randonnée';
+  document.getElementById('f-nom').value = r.nom||'';
+  document.getElementById('f-cartes').value = r.cartes||'';
+  document.getElementById('f-depart').value = r.depart||'';
+  document.getElementById('f-arrivee').value = r.arrivee||'';
+  document.getElementById('f-heure').value = r.heure||'08:00';
+  document.getElementById('f-altdepart').value = (r.altDepart!==undefined && r.altDepart!==0) ? r.altDepart : '';
+  document.getElementById('f-datedebut').value = r.dateDebut || '';
+  document.getElementById('f-datefin').value = r.dateFin || '';
+  document.getElementById('f-vplat').value = r.params ? r.params.vplat : state.globalParams.vplat;
+  document.getElementById('f-vdplus').value = r.params ? r.params.vdplus : state.globalParams.vdplus;
+  document.getElementById('f-vdminus').value = r.params ? r.params.vdminus : state.globalParams.vdminus;
+  document.getElementById('f-comment').value = r.comment||'';
+  refreshModeToggle(r);
+  refreshSortieType();
+  openModal('modal-rando');
+}
+
+function saveRando() {
+  var nom = document.getElementById('f-nom').value.trim();
+  if (!nom) { showToast('Le nom est requis.', true); return; }
+  var params = { vplat: parseFloat(document.getElementById('f-vplat').value)||4.2, vdplus: parseFloat(document.getElementById('f-vdplus').value)||400, vdminus: parseFloat(document.getElementById('f-vdminus').value)||600 };
+  var altDepart = parseInt(document.getElementById('f-altdepart').value)||0;
+  var sortieType = state.formSortieType || 'journee';
+  var dateDebut = document.getElementById('f-datedebut').value || null;
+  var dateFin = document.getElementById('f-datefin').value || null;
+  if (dateDebut && dateFin && dateFin < dateDebut) { showToast('La date de fin précède la date de début.', true); return; }
+  if (state.editingRandoId) {
+    var r = state.randos.find(function(x){ return x.id === state.editingRandoId; });
+    r.nom = nom; r.cartes = document.getElementById('f-cartes').value;
+    r.depart = document.getElementById('f-depart').value;
+    r.arrivee = document.getElementById('f-arrivee').value || document.getElementById('f-depart').value;
+    r.heure = document.getElementById('f-heure').value;
+    r.altDepart = altDepart;
+    r.sortieType = sortieType;
+    r.dateDebut = dateDebut;
+    r.dateFin = dateFin;
+    if ((r.points||[]).length === 0) r.saisieMode = state.formSaisieMode;
+    r.params = params;
+    r.comment = document.getElementById('f-comment').value;
+  } else {
+    if (!dateDebut) { showToast('La date de début est requise.', true); return; }
+    var nr = { id: uid(), nom: nom, cartes: document.getElementById('f-cartes').value, depart: document.getElementById('f-depart').value, arrivee: document.getElementById('f-arrivee').value || document.getElementById('f-depart').value, heure: document.getElementById('f-heure').value, altDepart: altDepart, sortieType: sortieType, dateDebut: dateDebut, dateFin: dateFin, saisieMode: state.formSaisieMode, params: params, comment: document.getElementById('f-comment').value, points: [], dminusTotal: null };
+    state.randos.push(nr);
+    state.activeRandoId = nr.id;
+  }
+  save(); closeModal('modal-rando'); renderMarche(); renderRandoList();
+}
+
+function deleteRando(id) {
+  showConfirm('Supprimer cette randonnée ?', function() {
+    state.randos = state.randos.filter(function(r){ return r.id !== id; });
+    if (state.activeRandoId === id) state.activeRandoId = state.randos.length > 0 ? state.randos[0].id : null;
+    save(); renderRandoList(); renderMarche();
+  }, 'Supprimer');
+}
+
+function applyPointFormLabels(rando) {
+  var troncon = rando && rando.saisieMode === 'troncon';
+  document.getElementById('lbl-dist').innerHTML = troncon ? 'Distance du tronçon<small>km depuis le point précédent</small>' : 'Distance cumulée<small>km depuis le départ</small>';
+  document.getElementById('lbl-dplus').innerHTML = troncon ? 'D+ du tronçon<small>m du segment</small>' : 'Cumul D+<small>m depuis le départ</small>';
+  document.getElementById('lbl-dminus').innerHTML = troncon ? 'D− du tronçon<small>m du segment · optionnel</small>' : 'Cumul D−<small>m · optionnel</small>';
+}
+
+function openAddPoint(storeIdx) {
+  var rando = getActiveRando(); if (!rando) { showToast('Sélectionnez une randonnée d\'abord.', true); return; }
+  applyPointFormLabels(rando);
+  state.editingPointIdx = (storeIdx !== undefined) ? storeIdx : null;
+  document.getElementById('modal-point-title').textContent = state.editingPointIdx !== null ? 'Modifier le point' : 'Nouveau point';
+  if (state.editingPointIdx !== null) {
+    var p = rando.points[state.editingPointIdx];
+    document.getElementById('pt-nom').value = p.nom||'';
+    document.getElementById('pt-dist').value = (p.dist!==undefined&&p.dist!==null) ? p.dist : '';
+    document.getElementById('pt-alt').value = p.alt||'';
+    document.getElementById('pt-dplus').value = (p.dplus!==undefined&&p.dplus!==null) ? p.dplus : '';
+    document.getElementById('pt-dminus').value = (p.dminus !== null && p.dminus !== undefined) ? p.dminus : '';
+    document.getElementById('pt-azimut').value = (p.azimut !== null && p.azimut !== undefined) ? p.azimut : '';
+    document.getElementById('pt-water').checked = p.water||false;
+    document.getElementById('pt-comment').value = p.comment||'';
+  } else {
+    ['pt-nom','pt-dist','pt-alt','pt-dplus','pt-dminus','pt-azimut','pt-comment'].forEach(function(id){ document.getElementById(id).value=''; });
+    document.getElementById('pt-water').checked = false;
+  }
+  openModal('modal-point');
+}
+
+function savePoint() {
+  var nom = document.getElementById('pt-nom').value.trim();
+  if (!nom) { showToast('Le nom du point est requis.', true); return; }
+  var rando = getActiveRando();
+  var dminusVal = document.getElementById('pt-dminus').value;
+  var azimutVal = document.getElementById('pt-azimut').value;
+  if (azimutVal !== '') {
+    var az = parseInt(azimutVal);
+    if (isNaN(az) || az < 0 || az > 359) { showToast('L\'azimut doit être compris entre 0 et 359°.', true); return; }
+  }
+  var point = { nom: nom, dist: parseFloat(document.getElementById('pt-dist').value)||0, alt: parseInt(document.getElementById('pt-alt').value)||0, dplus: parseInt(document.getElementById('pt-dplus').value)||0, dminus: dminusVal !== '' ? parseInt(dminusVal) : null, azimut: azimutVal !== '' ? parseInt(azimutVal) : null, water: document.getElementById('pt-water').checked, comment: document.getElementById('pt-comment').value };
+  if (state.editingPointIdx !== null) {
+    rando.points[state.editingPointIdx] = point;
+  } else {
+    rando.points.push(point);
+  }
+  // Sort only in cumulé mode (by cumulative distance). In troncon mode, keep creation order.
+  if (rando.saisieMode !== 'troncon') sortPointsCumule(rando);
+  save(); closeModal('modal-point'); renderMarche();
+}
+
+// In cumulé mode, sort real points by distance while keeping pauses attached after their preceding real point.
+function sortPointsCumule(rando) {
+  var pts = rando.points || [];
+  // Build groups: each real point with the pauses that follow it
+  var groups = [];
+  var leadingPauses = [];
+  var current = null;
+  for (var i = 0; i < pts.length; i++) {
+    if (pts[i].type === 'pause') {
+      if (current) current.pauses.push(pts[i]); else leadingPauses.push(pts[i]);
+    } else {
+      current = { real: pts[i], pauses: [] };
+      groups.push(current);
+    }
+  }
+  groups.sort(function(a, b){ return (a.real.dist||0) - (b.real.dist||0); });
+  var out = leadingPauses.slice();
+  groups.forEach(function(g){ out.push(g.real); g.pauses.forEach(function(p){ out.push(p); }); });
+  rando.points = out;
+}
+
+function openAddPause(storeIdx) {
+  var rando = getActiveRando(); if (!rando) { showToast('Sélectionnez une randonnée d\'abord.', true); return; }
+  state.editingPointIdx = (storeIdx !== undefined) ? storeIdx : null;
+  document.getElementById('modal-pause-title').textContent = state.editingPointIdx !== null ? 'Modifier la pause' : 'Nouvelle pause';
+  if (state.editingPointIdx !== null) {
+    var p = rando.points[state.editingPointIdx];
+    document.getElementById('pause-nom').value = p.nom||'';
+    document.getElementById('pause-duree').value = p.duree||'';
+    document.getElementById('pause-comment').value = p.comment||'';
+  } else {
+    document.getElementById('pause-nom').value = '';
+    document.getElementById('pause-duree').value = '';
+    document.getElementById('pause-comment').value = '';
+  }
+  openModal('modal-pause');
+}
+
+function savePause() {
+  var nom = document.getElementById('pause-nom').value.trim() || 'Pause';
+  var duree = parseInt(document.getElementById('pause-duree').value)||0;
+  var rando = getActiveRando();
+  var pause = { type: 'pause', nom: nom, duree: duree, comment: document.getElementById('pause-comment').value };
+  if (state.editingPointIdx !== null) {
+    rando.points[state.editingPointIdx] = pause;
+  } else {
+    rando.points.push(pause);
+  }
+  save(); closeModal('modal-pause'); renderMarche();
+}
+
+function onDMinusTotalChange() {
+  var rando = getActiveRando(); if (!rando) return;
+  rando.dminusTotal = parseFloat(document.getElementById('dminus-total-input').value)||null;
+  save(); renderMarche();
+}
+
+function renderParams() {
+  document.getElementById('p-vplat').value = state.globalParams.vplat;
+  document.getElementById('p-vdplus').value = state.globalParams.vdplus;
+  document.getElementById('p-vdminus').value = state.globalParams.vdminus;
+}
+
+function saveGlobalParams() {
+  state.globalParams.vplat = parseFloat(document.getElementById('p-vplat').value)||4.2;
+  state.globalParams.vdplus = parseFloat(document.getElementById('p-vdplus').value)||400;
+  state.globalParams.vdminus = parseFloat(document.getElementById('p-vdminus').value)||600;
+  save();
+}
+
+function resetGlobalParams() { state.globalParams = { vplat: 4.2, vdplus: 400, vdminus: 600 }; save(); renderParams(); }
+
+function exportData() {
+  var data = { randos: state.randos, globalParams: state.globalParams, exportDate: new Date().toISOString() };
+  var blob = new Blob([JSON.stringify(data,null,2)], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  var d = new Date();
+  a.href = url; a.download = 'randonnees-' + d.getFullYear() + '-' + fmt2(d.getMonth()+1) + '-' + fmt2(d.getDate()) + '.json';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function importData(event) {
+  var file = event.target.files[0]; if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var data;
+    try {
+      data = JSON.parse(e.target.result);
+      if (!data.randos) throw new Error();
+    } catch(err) { showToast('Fichier invalide.', true); event.target.value = ''; return; }
+    showConfirm('Importer ' + data.randos.length + ' randonnée(s) ? Les doublons seront ignorés.', function() {
+      var ids = state.randos.map(function(r){ return r.id; }), added = 0;
+      data.randos.forEach(function(r){ if (!ids.includes(r.id)) { state.randos.push(r); added++; } });
+      if (data.globalParams) state.globalParams = data.globalParams;
+      load(); save(); renderParams(); renderRandoList(); renderMarche();
+      showToast(added + ' randonnée(s) importée(s).');
+    }, 'Importer');
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+var _toastTimer = null;
+function showToast(msg, isError) {
+  var t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  t.classList.toggle('error', !!isError);
+  t.classList.add('show');
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 3200);
+}
+
+function showConfirm(msg, onOk, okLabel) {
+  var ov = document.getElementById('confirm-overlay');
+  document.getElementById('confirm-body').textContent = msg;
+  document.getElementById('confirm-ok').textContent = okLabel || 'Confirmer';
+  ov.classList.add('open');
+  var okBtn = document.getElementById('confirm-ok');
+  var cancelBtn = document.getElementById('confirm-cancel');
+  function cleanup() { ov.classList.remove('open'); okBtn.onclick = null; cancelBtn.onclick = null; }
+  okBtn.onclick = function(){ cleanup(); onOk(); };
+  cancelBtn.onclick = function(){ cleanup(); };
+}
+
+/* ============================================================
+   MODULE PRÉSENCE & MÉDICAL (ODMV2 — étape 2)
+   - Crypto : clé AES-GCM non-extractible en IndexedDB
+   - Médical chiffré : IndexedDB (hors odm_state, hors cache SW)
+   - Identité/pointage en clair : localStorage clé séparée par rando
+   - Asynchrone (Promises) — isolé du cœur synchrone d'ODM
+   ============================================================ */
+
+/* --- IndexedDB bas niveau --- */
+var MEDDB_NAME = 'odm_med';
+var MEDDB_VERSION = 1;
+function medDbOpen() {
+  return new Promise(function(resolve, reject) {
+    var req = indexedDB.open(MEDDB_NAME, MEDDB_VERSION);
+    req.onupgradeneeded = function(e) {
+      var db = e.target.result;
+      if (!db.objectStoreNames.contains('keys')) db.createObjectStore('keys');
+      if (!db.objectStoreNames.contains('medical')) db.createObjectStore('medical');
+    };
+    req.onsuccess = function(e) { resolve(e.target.result); };
+    req.onerror = function(e) { reject(e.target.error); };
+  });
+}
+function medDbPut(store, key, value) {
+  return medDbOpen().then(function(db) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction(store, 'readwrite');
+      tx.objectStore(store).put(value, key);
+      tx.oncomplete = function(){ resolve(true); };
+      tx.onerror = function(e){ reject(e.target.error); };
+    });
+  });
+}
+function medDbGet(store, key) {
+  return medDbOpen().then(function(db) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction(store, 'readonly');
+      var r = tx.objectStore(store).get(key);
+      r.onsuccess = function(){ resolve(r.result); };
+      r.onerror = function(e){ reject(e.target.error); };
+    });
+  });
+}
+function medDbDelete(store, key) {
+  return medDbOpen().then(function(db) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction(store, 'readwrite');
+      tx.objectStore(store).delete(key);
+      tx.oncomplete = function(){ resolve(true); };
+      tx.onerror = function(e){ reject(e.target.error); };
+    });
+  });
+}
+
+/* --- Clé de chiffrement : non-extractible, créée une fois, rangée en IndexedDB --- */
+function getCryptoKey() {
+  return medDbGet('keys', 'medKey').then(function(existing) {
+    if (existing) return existing;
+    return crypto.subtle.generateKey(
+      { name: 'AES-GCM', length: 256 },
+      false, /* extractable: false → la clé ne peut jamais être exportée par le JS */
+      ['encrypt', 'decrypt']
+    ).then(function(key) {
+      return medDbPut('keys', 'medKey', key).then(function(){ return key; });
+    });
+  });
+}
+
+/* --- Chiffrement / déchiffrement d'un objet JSON --- */
+function encryptObj(obj) {
+  return getCryptoKey().then(function(key) {
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    var data = new TextEncoder().encode(JSON.stringify(obj));
+    return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, data).then(function(ct) {
+      return { iv: Array.from(iv), ct: Array.from(new Uint8Array(ct)) };
+    });
+  });
+}
+function decryptObj(blob) {
+  return getCryptoKey().then(function(key) {
+    var iv = new Uint8Array(blob.iv);
+    var ct = new Uint8Array(blob.ct);
+    return crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, ct).then(function(pt) {
+      return JSON.parse(new TextDecoder().decode(pt));
+    });
+  });
+}
+
+/* --- Champs médicaux (chiffrés). PART_COMMENTS inclus : contient des
+       observations médicales pour les journées (doc §6). --- */
+var MEDICAL_FIELDS = [
+  'CONT_URGENCE', 'MED_TRAITANT',
+  'ASTHME', 'HYPERTENSION', 'NO_PATHO', 'DIABETE', 'EPILEPSIE',
+  'AFF_CARDIA', 'AFF_CUT', 'RHUMATO', 'HAND', 'HAN_P', 'HAN_MP',
+  'AFF_AUTRES', 'HAN_CONS', 'INTO_ALI', 'ALL_ALI',
+  'SOINS_MED', 'SOINS_MED_AUTO', 'SOINS_MED_DESC', 'AUTRES_INFO_MED',
+  'PART_COMMENTS'
+];
+/* Champs identité/pointage (clair). */
+var IDENT_FIELDS = [
+  'IDPARTICIPANT', 'PART_NB_PART', 'PART_OPT_NB', 'PART_OPT_COM',
+  'NOM', 'PRENOM', 'TEL', 'MAIL', 'DT_NAIS'
+];
+
+/* --- Stockage identité/pointage : localStorage, clé séparée par rando, HORS export --- */
+function participantsKey(randoId) { return 'odm_participants_' + randoId; }
+function saveParticipantsIdent(randoId, list) {
+  try { localStorage.setItem(participantsKey(randoId), JSON.stringify(list)); } catch(e) {}
+}
+function loadParticipantsIdent(randoId) {
+  try {
+    var s = localStorage.getItem(participantsKey(randoId));
+    return s ? JSON.parse(s) : null;
+  } catch(e) { return null; }
+}
+
+/* --- Parsing du JSON WinDev + split clair/chiffré --- */
+function loadParticipants(event) {
+  var file = event.target.files[0]; if (!file) { return; }
+  var rando = getActiveRando();
+  if (!rando) { showToast('Aucune randonnée active.', true); event.target.value=''; return; }
+  if (!rando.dateDebut) { showToast('Renseignez d\'abord une date de début.', true); event.target.value=''; return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var data, list;
+    try {
+      data = JSON.parse(e.target.result);
+      list = data.REQ_PARTI_LISTE_MEDICALE_JSON;
+      if (!Array.isArray(list) || list.length === 0) throw new Error();
+    } catch(err) { showToast('Fichier participants invalide.', true); event.target.value=''; return; }
+
+    var orga = (list[0] && list[0].ORGA_DENO) ? list[0].ORGA_DENO : '(sortie sans nom)';
+    showConfirm('Charger les ' + list.length + ' participant(s) de « ' + orga + ' » ?', function() {
+      /* split */
+      var idents = [], medByPid = {};
+      list.forEach(function(p) {
+        var ident = {};
+        IDENT_FIELDS.forEach(function(f){ ident[f] = (p[f] !== undefined ? p[f] : null); });
+        idents.push(ident);
+        var med = {};
+        MEDICAL_FIELDS.forEach(function(f){ med[f] = (p[f] !== undefined ? p[f] : null); });
+        medByPid[p.IDPARTICIPANT] = med;
+      });
+      /* identité/pointage en clair */
+      saveParticipantsIdent(rando.id, idents);
+      /* médical chiffré en IndexedDB, clé = randoId */
+      encryptObj({ orga: orga, loadedAt: new Date().toISOString(), med: medByPid })
+        .then(function(blob) { return medDbPut('medical', rando.id, blob); })
+        .then(function() {
+          showToast(list.length + ' participant(s) chargé(s).');
+          renderPresence();
+        })
+        .catch(function() {
+          showToast('Erreur de chiffrement du médical.', true);
+        });
+    }, 'Charger');
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+/* --- UI écran Présence --- */
+function renderPresence() {
+  var rando = getActiveRando();
+  var elNoRando = document.getElementById('presence-norando');
+  var elNoDate = document.getElementById('presence-nodate');
+  var elContent = document.getElementById('presence-content');
+  elNoRando.style.display = 'none';
+  elNoDate.style.display = 'none';
+  elContent.style.display = 'none';
+  if (!rando) { elNoRando.style.display = 'block'; return; }
+  if (!rando.dateDebut) { elNoDate.style.display = 'block'; return; }
+  elContent.style.display = 'block';
+  document.getElementById('presence-rando-name').textContent =
+    (rando.nom || 'Sans nom') + ' · ' + rando.dateDebut;
+  var idents = loadParticipantsIdent(rando.id);
+  var countEl = document.getElementById('presence-count');
+  if (idents && idents.length) {
+    var people = idents.reduce(function(acc, p){ return acc + (parseInt(p.PART_NB_PART)||0); }, 0);
+    countEl.textContent = idents.length + ' inscription(s) chargée(s) · ' + people + ' personne(s) attendue(s).';
+    countEl.style.display = 'block';
+  } else {
+    countEl.style.display = 'none';
+  }
+}
+
+document.querySelectorAll('.modal-overlay').forEach(function(m){
+  m.addEventListener('click', function(e){ if (e.target === m) m.classList.remove('open'); });
+});
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(function(){});
+}
+
+load();
+renderMarche();
+</script>
+<div class="toast-wrap"><div class="toast" id="toast"><div class="toast-head">ODM by CimeEnvie</div><div class="toast-msg" id="toast-msg"></div></div></div>
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <div class="confirm-head">ODM by CimeEnvie</div>
+    <div class="confirm-body" id="confirm-body"></div>
+    <div class="confirm-actions">
+      <button class="btn primary" id="confirm-ok" style="flex:1">Confirmer</button>
+      <button class="btn" id="confirm-cancel" style="flex:1">Annuler</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
