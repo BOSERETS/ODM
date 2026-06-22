@@ -326,6 +326,24 @@ textarea.form-input { resize: vertical; min-height: 60px; text-align: left; }
       </div>
     </div>
     <div class="form-section">
+      <div class="form-section-title">Type & dates de sortie</div>
+      <div style="padding:10px 16px 0">
+        <div class="mode-toggle">
+          <button type="button" id="type-journee" onclick="setSortieType('journee')">Journée</button>
+          <button type="button" id="type-voyage" onclick="setSortieType('voyage')">Voyage</button>
+          <button type="button" id="type-ultra" onclick="setSortieType('ultra')">Ultra</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-label">Date de début<small>obligatoire</small></div>
+        <input class="form-input" type="date" id="f-datedebut">
+      </div>
+      <div class="form-row">
+        <div class="form-label">Date de fin<small>option · séjour</small></div>
+        <input class="form-input" type="date" id="f-datefin">
+      </div>
+    </div>
+    <div class="form-section">
       <div class="form-section-title">Mode de saisie des points</div>
       <div style="padding:10px 16px">
         <div class="mode-toggle">
@@ -446,7 +464,7 @@ var state = {
   randos: [], activeRandoId: null,
   globalParams: { vplat: 4.2, vdplus: 400, vdminus: 600 },
   editingRandoId: null, editingPointIdx: null, detailPointIdx: null,
-  formSaisieMode: 'cumule'
+  formSaisieMode: 'cumule', formSortieType: 'journee'
 };
 
 function load() {
@@ -468,6 +486,9 @@ function load() {
         if (!r.heure) r.heure = '08:00';
         if (!r.saisieMode) r.saisieMode = 'cumule';
         if (r.altDepart === undefined) r.altDepart = 0;
+        if (r.sortieType === undefined) r.sortieType = 'journee';
+        if (r.dateDebut === undefined) r.dateDebut = null;
+        if (r.dateFin === undefined) r.dateFin = null;
         if (!r.params) r.params = { vplat: state.globalParams.vplat, vdplus: state.globalParams.vdplus, vdminus: state.globalParams.vdminus };
       });
     }
@@ -812,9 +833,21 @@ function refreshModeToggle(rando) {
   document.getElementById('mode-troncon').classList.toggle('active', state.formSaisieMode === 'troncon');
 }
 
+function setSortieType(t) {
+  state.formSortieType = t;
+  refreshSortieType();
+}
+
+function refreshSortieType() {
+  document.getElementById('type-journee').classList.toggle('active', state.formSortieType === 'journee');
+  document.getElementById('type-voyage').classList.toggle('active', state.formSortieType === 'voyage');
+  document.getElementById('type-ultra').classList.toggle('active', state.formSortieType === 'ultra');
+}
+
 function openNewRando() {
   state.editingRandoId = null;
   state.formSaisieMode = 'cumule';
+  state.formSortieType = 'journee';
   document.getElementById('modal-rando-title').textContent = 'Nouvelle randonnée';
   document.getElementById('f-nom').value = '';
   document.getElementById('f-cartes').value = '';
@@ -822,11 +855,14 @@ function openNewRando() {
   document.getElementById('f-arrivee').value = '';
   document.getElementById('f-heure').value = '08:00';
   document.getElementById('f-altdepart').value = '';
+  document.getElementById('f-datedebut').value = '';
+  document.getElementById('f-datefin').value = '';
   document.getElementById('f-vplat').value = state.globalParams.vplat;
   document.getElementById('f-vdplus').value = state.globalParams.vdplus;
   document.getElementById('f-vdminus').value = state.globalParams.vdminus;
   document.getElementById('f-comment').value = '';
   refreshModeToggle(null);
+  refreshSortieType();
   openModal('modal-rando');
 }
 
@@ -836,6 +872,7 @@ function openEditRandoById(id) {
   var r = state.randos.find(function(x){ return x.id === id; }); if (!r) return;
   state.editingRandoId = id;
   state.formSaisieMode = r.saisieMode || 'cumule';
+  state.formSortieType = r.sortieType || 'journee';
   document.getElementById('modal-rando-title').textContent = 'Modifier la randonnée';
   document.getElementById('f-nom').value = r.nom||'';
   document.getElementById('f-cartes').value = r.cartes||'';
@@ -843,11 +880,14 @@ function openEditRandoById(id) {
   document.getElementById('f-arrivee').value = r.arrivee||'';
   document.getElementById('f-heure').value = r.heure||'08:00';
   document.getElementById('f-altdepart').value = (r.altDepart!==undefined && r.altDepart!==0) ? r.altDepart : '';
+  document.getElementById('f-datedebut').value = r.dateDebut || '';
+  document.getElementById('f-datefin').value = r.dateFin || '';
   document.getElementById('f-vplat').value = r.params ? r.params.vplat : state.globalParams.vplat;
   document.getElementById('f-vdplus').value = r.params ? r.params.vdplus : state.globalParams.vdplus;
   document.getElementById('f-vdminus').value = r.params ? r.params.vdminus : state.globalParams.vdminus;
   document.getElementById('f-comment').value = r.comment||'';
   refreshModeToggle(r);
+  refreshSortieType();
   openModal('modal-rando');
 }
 
@@ -856,6 +896,10 @@ function saveRando() {
   if (!nom) { showToast('Le nom est requis.', true); return; }
   var params = { vplat: parseFloat(document.getElementById('f-vplat').value)||4.2, vdplus: parseFloat(document.getElementById('f-vdplus').value)||400, vdminus: parseFloat(document.getElementById('f-vdminus').value)||600 };
   var altDepart = parseInt(document.getElementById('f-altdepart').value)||0;
+  var sortieType = state.formSortieType || 'journee';
+  var dateDebut = document.getElementById('f-datedebut').value || null;
+  var dateFin = document.getElementById('f-datefin').value || null;
+  if (dateDebut && dateFin && dateFin < dateDebut) { showToast('La date de fin précède la date de début.', true); return; }
   if (state.editingRandoId) {
     var r = state.randos.find(function(x){ return x.id === state.editingRandoId; });
     r.nom = nom; r.cartes = document.getElementById('f-cartes').value;
@@ -863,11 +907,15 @@ function saveRando() {
     r.arrivee = document.getElementById('f-arrivee').value || document.getElementById('f-depart').value;
     r.heure = document.getElementById('f-heure').value;
     r.altDepart = altDepart;
+    r.sortieType = sortieType;
+    r.dateDebut = dateDebut;
+    r.dateFin = dateFin;
     if ((r.points||[]).length === 0) r.saisieMode = state.formSaisieMode;
     r.params = params;
     r.comment = document.getElementById('f-comment').value;
   } else {
-    var nr = { id: uid(), nom: nom, cartes: document.getElementById('f-cartes').value, depart: document.getElementById('f-depart').value, arrivee: document.getElementById('f-arrivee').value || document.getElementById('f-depart').value, heure: document.getElementById('f-heure').value, altDepart: altDepart, saisieMode: state.formSaisieMode, params: params, comment: document.getElementById('f-comment').value, points: [], dminusTotal: null };
+    if (!dateDebut) { showToast('La date de début est requise.', true); return; }
+    var nr = { id: uid(), nom: nom, cartes: document.getElementById('f-cartes').value, depart: document.getElementById('f-depart').value, arrivee: document.getElementById('f-arrivee').value || document.getElementById('f-depart').value, heure: document.getElementById('f-heure').value, altDepart: altDepart, sortieType: sortieType, dateDebut: dateDebut, dateFin: dateFin, saisieMode: state.formSaisieMode, params: params, comment: document.getElementById('f-comment').value, points: [], dminusTotal: null };
     state.randos.push(nr);
     state.activeRandoId = nr.id;
   }
