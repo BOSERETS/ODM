@@ -1325,7 +1325,7 @@ function renderPresence() {
   idents.forEach(function(p) {
     var nb = parseInt(p.PART_NB_PART) || 0;
     totalPeople += nb;
-    if (p.present) presentPeople += nb;
+    presentPeople += presentCountOf(p);
   });
   globalEl.textContent = presentPeople + ' présent(s) / ' + totalPeople + ' attendu(s)';
   globalEl.style.display = 'block';
@@ -1333,14 +1333,27 @@ function renderPresence() {
   var html = '';
   idents.forEach(function(p, i) {
     var nb = parseInt(p.PART_NB_PART) || 0;
-    var present = !!p.present;
+    var pc = presentCountOf(p);
     var tel = p.TEL || '';
     html += '<div style="display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border)">';
     html += '<div style="flex:1; min-width:0">';
     html += '<div style="font-size:14px; color:var(--text)">' + escapeHtml(p.NOM || '') + ' ' + escapeHtml(p.PRENOM || '') + (nb > 1 ? ' <span style="color:var(--text2); font-size:12px">(' + nb + ' pers.)</span>' : '') + '</div>';
     if (tel) html += '<div style="font-size:12px; margin-top:2px"><a href="tel:' + escapeHtml(tel) + '" style="color:var(--green); text-decoration:none">' + escapeHtml(tel) + '</a></div>';
     html += '</div>';
-    html += '<button onclick="togglePresent(' + i + ')" style="flex-shrink:0; min-width:84px; padding:9px 12px; border-radius:8px; border:1px solid ' + (present ? 'var(--green)' : 'var(--border)') + '; background:' + (present ? 'var(--green)' : 'var(--surface)') + '; color:' + (present ? '#fff' : 'var(--text2)') + '; font-family:inherit; font-size:13px; cursor:pointer">' + (present ? '✓ Présent' : 'Pointer') + '</button>';
+    if (nb > 1) {
+      /* inscription groupée : boutons +/− avec décompte */
+      var minusDisabled = pc <= 0;
+      var plusDisabled = pc >= nb;
+      html += '<div style="flex-shrink:0; display:flex; align-items:center; gap:6px">';
+      html += '<button onclick="adjustPresent(' + i + ',-1)"' + (minusDisabled ? ' disabled' : '') + ' style="width:38px; height:38px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:' + (minusDisabled ? 'var(--text3)' : 'var(--text)') + '; font-size:20px; font-family:inherit; cursor:' + (minusDisabled ? 'default' : 'pointer') + '">−</button>';
+      html += '<div style="min-width:46px; text-align:center; font-size:14px; color:' + (pc > 0 ? 'var(--green)' : 'var(--text2)') + '; font-weight:bold">' + pc + ' / ' + nb + '</div>';
+      html += '<button onclick="adjustPresent(' + i + ',1)"' + (plusDisabled ? ' disabled' : '') + ' style="width:38px; height:38px; border-radius:8px; border:1px solid ' + (plusDisabled ? 'var(--border)' : 'var(--green)') + '; background:' + (plusDisabled ? 'var(--surface)' : 'var(--green)') + '; color:' + (plusDisabled ? 'var(--text3)' : '#fff') + '; font-size:20px; font-family:inherit; cursor:' + (plusDisabled ? 'default' : 'pointer') + '">+</button>';
+      html += '</div>';
+    } else {
+      /* inscription individuelle : bouton simple */
+      var present = pc > 0;
+      html += '<button onclick="togglePresent(' + i + ')" style="flex-shrink:0; min-width:84px; padding:9px 12px; border-radius:8px; border:1px solid ' + (present ? 'var(--green)' : 'var(--border)') + '; background:' + (present ? 'var(--green)' : 'var(--surface)') + '; color:' + (present ? '#fff' : 'var(--text2)') + '; font-family:inherit; font-size:13px; cursor:pointer">' + (present ? '✓ Présent' : 'Pointer') + '</button>';
+    }
     html += '</div>';
   });
   listEl.innerHTML = html;
@@ -1350,12 +1363,43 @@ function escapeHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+/* Lecture tolérante : convertit l'ancien format booléen 'present' vers presentCount */
+function presentCountOf(p) {
+  var nb = parseInt(p.PART_NB_PART) || 0;
+  var pc;
+  if (typeof p.presentCount === 'number') pc = p.presentCount;
+  else if (p.present === true) pc = nb;       /* migration ancien format */
+  else pc = 0;
+  if (pc < 0) pc = 0;
+  if (pc > nb) pc = nb;
+  return pc;
+}
+
+function adjustPresent(idx, delta) {
+  var rando = getActiveRando();
+  if (!rando) return;
+  var idents = loadParticipantsIdent(rando.id);
+  if (!idents || !idents[idx]) return;
+  var p = idents[idx];
+  var nb = parseInt(p.PART_NB_PART) || 0;
+  var pc = presentCountOf(p) + delta;
+  if (pc < 0) pc = 0;
+  if (pc > nb) pc = nb;
+  p.presentCount = pc;
+  if ('present' in p) delete p.present;   /* on abandonne l'ancien champ */
+  saveParticipantsIdent(rando.id, idents);
+  renderPresence();
+}
+
 function togglePresent(idx) {
   var rando = getActiveRando();
   if (!rando) return;
   var idents = loadParticipantsIdent(rando.id);
   if (!idents || !idents[idx]) return;
-  idents[idx].present = !idents[idx].present;
+  var p = idents[idx];
+  var nb = parseInt(p.PART_NB_PART) || 0;
+  p.presentCount = presentCountOf(p) > 0 ? 0 : nb;
+  if ('present' in p) delete p.present;
   saveParticipantsIdent(rando.id, idents);
   renderPresence();
 }
