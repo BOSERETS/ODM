@@ -1466,12 +1466,17 @@ function openParticipant(idx) {
   }
   /* zone médicale : placeholder le temps du déchiffrement */
   html += '<div id="detail-medical"><div style="color:var(--text3); font-size:13px; padding:12px 0">Déchiffrement de la fiche médicale…</div></div>';
+  /* bouton secours : uniquement voyage / ultra (pas journée) */
+  if (rando.sortieType === 'voyage' || rando.sortieType === 'ultra') {
+    html += '<button onclick="shareSecours(' + idx + ')" style="width:100%; margin-top:18px; padding:13px; border-radius:8px; border:none; background:#c0392b; color:#fff; font-family:inherit; font-size:15px; cursor:pointer">⛑ Transmettre aux secours</button>';
+  }
   body.innerHTML = html;
   body.parentNode.scrollTop = 0;
 
   /* 2) médical : asynchrone */
   medDbGet('medical', rando.id).then(function(blob) {
     if (!blob) { renderMedicalBlock(null, p.IDPARTICIPANT, 'absent'); return; }
+    if (blob.expired) { renderMedicalBlock(null, p.IDPARTICIPANT, 'expired', blob.expiredOn); return; }
     return decryptObj(blob).then(function(payload) {
       var med = (payload && payload.med) ? payload.med[p.IDPARTICIPANT] : null;
       renderMedicalBlock(med, p.IDPARTICIPANT, 'ok');
@@ -1481,11 +1486,15 @@ function openParticipant(idx) {
   });
 }
 
-function renderMedicalBlock(med, pid, status) {
+function renderMedicalBlock(med, pid, status, expiredOn) {
   var el = document.getElementById('detail-medical');
   if (!el) return;  /* l'utilisateur a pu revenir à la liste entre-temps */
   if (status === 'error') {
     el.innerHTML = '<div style="background:#fdeaea; border:1px solid #c0392b; border-radius:8px; padding:12px; color:#c0392b; font-size:13px">Impossible de déchiffrer la fiche médicale sur cet appareil.</div>';
+    return;
+  }
+  if (status === 'expired') {
+    el.innerHTML = '<div style="background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:12px; color:var(--text2); font-size:13px">Médical expiré et purgé (>' + MED_EXPIRY_DAYS + ' j)' + (expiredOn ? ' — le ' + expiredOn : '') + '.</div>';
     return;
   }
   if (status === 'absent') {
@@ -1538,6 +1547,111 @@ function closeParticipant() {
   document.getElementById('presence-content').style.display = 'block';
 }
 
+/* ---- Fiche secours : navigator.share, texte structuré, exclut PART_COMMENTS ---- */
+function shareSecours(idx) {
+  var rando = getActiveRando();
+  if (!rando) return;
+  var idents = loadParticipantsIdent(rando.id);
+  if (!idents || !idents[idx]) return;
+  var p = idents[idx];
+  medDbGet('medical', rando.id).then(function(blob) {
+    if (!blob) { showToast('Aucune donnée médicale chargée.', true); return; }
+    if (blob.expired) { showToast('Médical expiré et purgé (>' + MED_EXPIRY_DAYS + ' j).', true); return; }
+    return decryptObj(blob).then(function(payload) {
+      var med = (payload && payload.med) ? payload.med[p.IDPARTICIPANT] : null;
+      var text = buildSecoursText(rando, p, med);
+      if (navigator.share) {
+        navigator.share({ title: 'Fiche médicale — ' + (p.NOM||'') + ' ' + (p.PRENOM||''), text: text })
+          .catch(function(){ /* annulation utilisateur : silencieux */ });
+      } else {
+        /* fallback : pas de partage natif (desktop) → copie presse-papier */
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(text).then(function(){ showToast('Fiche copiée dans le presse-papier.'); });
+        } else {
+          showToast('Partage non disponible sur cet appareil.', true);
+        }
+      }
+    });
+  }).catch(function() {
+    showToast('Impossible de déchiffrer la fiche médicale.', true);
+  });
+}
+
+function buildSecoursText(rando, p, med) {
+  var L = [];
+  var fullName = (p.NOM||'') + ' ' + (p.PRENOM||'');
+  L.push('FICHE MÉDICALE — ' + fullName.trim());
+  L.push('Sortie : ' + (rando.nom||'—') + ' — ' + (rando.dateDebut||'—'));
+  L.push('');
+  L.push('Né(e) le : ' + fmtDateNais(p.DT_NAIS));
+  /* RÈGLE null ≠ false : fiche non renseignée signalée en tête, pas de faux dossier vide */
+  var isNull = !med || (med.NO_PATHO === null && med.ASTHME === null && med.EPILEPSIE === null && med.CONT_URGENCE === null);
+  if (isNull) {
+    L.push('');
+    L.push('⚠️ FICHE MÉDICALE NON RENSEIGNÉE');
+    L.push('Aucune donnée médicale disponible pour cette personne.');
+    return L.join('\n');
+  }
+  L.push('Contact urgence : ' + secVal(med.CONT_URGENCE));
+  L.push('Médecin traitant : ' + secVal(med.MED_TRAITANT));
+  L.push('');
+  /* pathologies */
+  var pathos = [];
+  for (var k in PATHO_LABELS) { if (med[k] === true) pathos.push(PATHO_LABELS[k]); }
+  L.push('Pathologies : ' + (pathos.length ? pathos.join(', ') : (med.NO_PATHO === true ? 'aucune déclarée' : 'aucune déclarée')));
+  if (med.HAN_CONS) L.push('Conséquences / précisions : ' + med.HAN_CONS);
+  if (med.AFF_AUTRES) L.push('Affections autres : ' + med.AFF_AUTRES);
+  L.push('Allergie alimentaire : ' + secVal(med.ALL_ALI, 'aucune'));
+  L.push('Intolérance alimentaire : ' + secVal(med.INTO_ALI, 'aucune'));
+  L.push('Soins médicaux nécessaires : ' + (med.SOINS_MED === true ? 'oui' : 'non') + ' — autonome : ' + (med.SOINS_MED_AUTO === true ? 'oui' : 'non'));
+  if (med.SOINS_MED_DESC) L.push('Description soins : ' + med.SOINS_MED_DESC);
+  if (med.AUTRES_INFO_MED) L.push('Autres infos médicales : ' + med.AUTRES_INFO_MED);
+  /* PART_COMMENTS volontairement EXCLU (doc §6 / §8) */
+  return L.join('\n');
+}
+
+function secVal(v, emptyWord) {
+  return (v === null || v === undefined || v === '') ? (emptyWord || 'non renseigné') : v;
+}
+
+/* ---- Expiration automatique du médical : 15 j après la date de sortie ---- */
+var MED_EXPIRY_DAYS = 15;
+function purgeExpiredMedical() {
+  try {
+    if (!state.randos || !state.randos.length) return;
+    var today = new Date();
+    today.setHours(0,0,0,0);
+    state.randos.forEach(function(r) {
+      var ref = r.dateFin || r.dateDebut;   /* date de fin prioritaire, sinon début */
+      if (!ref) return;                       /* pas de date → on ne purge pas */
+      var refDate = parseISODate(ref);
+      if (!refDate) return;
+      var limit = new Date(refDate.getTime());
+      limit.setDate(limit.getDate() + MED_EXPIRY_DAYS);
+      if (today.getTime() > limit.getTime()) {
+        /* expiré : remplacer le bloc chiffré par un marqueur non sensible */
+        medDbGet('medical', r.id).then(function(blob) {
+          if (blob && blob.expired) return;   /* déjà purgé */
+          if (!blob) return;                  /* jamais chargé : rien à purger */
+          medDbPut('medical', r.id, { expired: true, expiredOn: ymd(today) });
+        }).catch(function(){});
+      }
+    });
+  } catch(e) {}
+}
+function parseISODate(s) {
+  if (!s || s.length < 10) return null;
+  var y = parseInt(s.substring(0,4)), m = parseInt(s.substring(5,7)), d = parseInt(s.substring(8,10));
+  if (!y || !m || !d) return null;
+  var dt = new Date(y, m-1, d);
+  dt.setHours(0,0,0,0);
+  return dt;
+}
+function ymd(dt) {
+  function p(n){ return (n<10?'0':'')+n; }
+  return dt.getFullYear() + '-' + p(dt.getMonth()+1) + '-' + p(dt.getDate());
+}
+
 document.querySelectorAll('.modal-overlay').forEach(function(m){
   m.addEventListener('click', function(e){ if (e.target === m) m.classList.remove('open'); });
 });
@@ -1548,6 +1662,7 @@ if ('serviceWorker' in navigator) {
 
 load();
 renderMarche();
+purgeExpiredMedical();
 </script>
 <div class="toast-wrap"><div class="toast" id="toast"><div class="toast-head">ODM by CimeEnvie</div><div class="toast-msg" id="toast-msg"></div></div></div>
 <div class="confirm-overlay" id="confirm-overlay">
