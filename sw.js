@@ -1,9 +1,12 @@
-var CACHE = 'odm-v3';
+var CACHE = 'odm-v4';
 var URLS = [
   '/ODM/',
   '/ODM/index.html',
   '/ODM/manifest.json',
-  '/ODM/sw.js'
+  '/ODM/sw.js',
+  '/ODM/icon-192.png',
+  '/ODM/icon-512.png',
+  '/ODM/icon-512-maskable.png'
 ];
 
 self.addEventListener('install', function(e) {
@@ -30,7 +33,7 @@ self.addEventListener('activate', function(e) {
 self.addEventListener('fetch', function(e) {
   // On ne gère que les requêtes GET vers notre domaine
   if (e.request.method !== 'GET') return;
-  
+
   e.respondWith(
     caches.open(CACHE).then(function(cache) {
       return cache.match(e.request).then(function(cached) {
