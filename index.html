@@ -294,8 +294,9 @@ textarea.form-input { resize: vertical; min-height: 60px; text-align: left; }
         Charger participants
       </button>
       <input type="file" id="participants-input" accept=".json" style="display:none" onchange="loadParticipants(event)">
-      <div id="presence-count" style="margin-top:14px; font-size:13px; color:var(--text); display:none"></div>
     </div>
+    <div id="presence-global" style="display:none; padding:10px 16px; margin:0 16px 4px; background:var(--green-dark); color:#fff; border-radius:8px; font-size:14px; text-align:center; font-weight:bold"></div>
+    <div id="presence-list" style="padding:0 16px 90px"></div>
   </div>
 </div>
 
@@ -1312,14 +1313,51 @@ function renderPresence() {
   document.getElementById('presence-rando-name').textContent =
     (rando.nom || 'Sans nom') + ' · ' + rando.dateDebut;
   var idents = loadParticipantsIdent(rando.id);
-  var countEl = document.getElementById('presence-count');
-  if (idents && idents.length) {
-    var people = idents.reduce(function(acc, p){ return acc + (parseInt(p.PART_NB_PART)||0); }, 0);
-    countEl.textContent = idents.length + ' inscription(s) chargée(s) · ' + people + ' personne(s) attendue(s).';
-    countEl.style.display = 'block';
-  } else {
-    countEl.style.display = 'none';
+  var globalEl = document.getElementById('presence-global');
+  var listEl = document.getElementById('presence-list');
+  if (!idents || !idents.length) {
+    globalEl.style.display = 'none';
+    listEl.innerHTML = '';
+    return;
   }
+  /* compteur global : personnes (somme PART_NB_PART), pas inscriptions */
+  var totalPeople = 0, presentPeople = 0;
+  idents.forEach(function(p) {
+    var nb = parseInt(p.PART_NB_PART) || 0;
+    totalPeople += nb;
+    if (p.present) presentPeople += nb;
+  });
+  globalEl.textContent = presentPeople + ' présent(s) / ' + totalPeople + ' attendu(s)';
+  globalEl.style.display = 'block';
+  /* liste */
+  var html = '';
+  idents.forEach(function(p, i) {
+    var nb = parseInt(p.PART_NB_PART) || 0;
+    var present = !!p.present;
+    var tel = p.TEL || '';
+    html += '<div style="display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border)">';
+    html += '<div style="flex:1; min-width:0">';
+    html += '<div style="font-size:14px; color:var(--text)">' + escapeHtml(p.NOM || '') + ' ' + escapeHtml(p.PRENOM || '') + (nb > 1 ? ' <span style="color:var(--text2); font-size:12px">(' + nb + ' pers.)</span>' : '') + '</div>';
+    if (tel) html += '<div style="font-size:12px; margin-top:2px"><a href="tel:' + escapeHtml(tel) + '" style="color:var(--green); text-decoration:none">' + escapeHtml(tel) + '</a></div>';
+    html += '</div>';
+    html += '<button onclick="togglePresent(' + i + ')" style="flex-shrink:0; min-width:84px; padding:9px 12px; border-radius:8px; border:1px solid ' + (present ? 'var(--green)' : 'var(--border)') + '; background:' + (present ? 'var(--green)' : 'var(--surface)') + '; color:' + (present ? '#fff' : 'var(--text2)') + '; font-family:inherit; font-size:13px; cursor:pointer">' + (present ? '✓ Présent' : 'Pointer') + '</button>';
+    html += '</div>';
+  });
+  listEl.innerHTML = html;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function togglePresent(idx) {
+  var rando = getActiveRando();
+  if (!rando) return;
+  var idents = loadParticipantsIdent(rando.id);
+  if (!idents || !idents[idx]) return;
+  idents[idx].present = !idents[idx].present;
+  saveParticipantsIdent(rando.id, idents);
+  renderPresence();
 }
 
 document.querySelectorAll('.modal-overlay').forEach(function(m){
