@@ -298,6 +298,12 @@ textarea.form-input { resize: vertical; min-height: 60px; text-align: left; }
     <div id="presence-global" style="display:none; padding:10px 16px; margin:0 16px 4px; background:var(--green-dark); color:#fff; border-radius:8px; font-size:14px; text-align:center; font-weight:bold"></div>
     <div id="presence-list" style="padding:0 16px 90px"></div>
   </div>
+  <div id="presence-detail" style="display:none">
+    <div style="padding:12px 16px 0">
+      <button onclick="closeParticipant()" style="background:none; border:none; color:var(--green); font-family:inherit; font-size:14px; cursor:pointer; padding:6px 0">← Retour à la liste</button>
+    </div>
+    <div id="presence-detail-body" style="padding:8px 16px 90px"></div>
+  </div>
 </div>
 
 <div class="bottom-nav">
@@ -1310,6 +1316,8 @@ function renderPresence() {
   if (!rando) { elNoRando.style.display = 'block'; return; }
   if (!rando.dateDebut) { elNoDate.style.display = 'block'; return; }
   elContent.style.display = 'block';
+  var detailEl = document.getElementById('presence-detail');
+  if (detailEl) detailEl.style.display = 'none';
   document.getElementById('presence-rando-name').textContent =
     (rando.nom || 'Sans nom') + ' · ' + rando.dateDebut;
   var idents = loadParticipantsIdent(rando.id);
@@ -1336,9 +1344,15 @@ function renderPresence() {
     var pc = presentCountOf(p);
     var tel = p.TEL || '';
     html += '<div style="display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border)">';
-    html += '<div style="flex:1; min-width:0">';
-    html += '<div style="font-size:14px; color:var(--text)">' + escapeHtml(p.NOM || '') + ' ' + escapeHtml(p.PRENOM || '') + (nb > 1 ? ' <span style="color:var(--text2); font-size:12px">(' + nb + ' pers.)</span>' : '') + '</div>';
-    if (tel) html += '<div style="font-size:12px; margin-top:2px"><a href="tel:' + escapeHtml(tel) + '" style="color:var(--green); text-decoration:none">' + escapeHtml(tel) + '</a></div>';
+    html += '<div onclick="openParticipant(' + i + ')" style="flex:1; min-width:0; cursor:pointer">';
+    var optNb = parseInt(p.PART_OPT_NB) || 0;
+    var optBadge = '';
+    if (optNb > 0) {
+      optBadge = '<span title="Option réservée" style="display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; margin-right:6px; vertical-align:middle; background:var(--amber-light); border:1px solid var(--amber); border-radius:4px"><svg viewBox="0 0 24 24" style="width:11px;height:11px;stroke:var(--amber);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><polygon points="12 2 15 8.5 22 9.3 17 14 18.3 21 12 17.7 5.7 21 7 14 2 9.3 9 8.5 12 2"/></svg></span>';
+    }
+    var nameColor = optNb > 0 ? 'var(--amber)' : 'var(--text)';
+    html += '<div style="font-size:14px; color:' + nameColor + '">' + optBadge + escapeHtml(p.NOM || '') + ' ' + escapeHtml(p.PRENOM || '') + (nb > 1 ? ' <span style="color:var(--text2); font-size:12px">(' + nb + ' pers.)</span>' : '') + '</div>';
+    if (tel) html += '<div style="font-size:12px; margin-top:2px"><a href="tel:' + escapeHtml(tel) + '" onclick="event.stopPropagation()" style="color:var(--green); text-decoration:none">' + escapeHtml(tel) + '</a></div>';
     html += '</div>';
     if (nb > 1) {
       /* inscription groupée : boutons +/− avec décompte */
@@ -1402,6 +1416,126 @@ function togglePresent(idx) {
   if ('present' in p) delete p.present;
   saveParticipantsIdent(rando.id, idents);
   renderPresence();
+}
+
+/* ---- Fiche détail participant (écran dédié, déchiffrement asynchrone) ---- */
+function fmtDateNais(s) {
+  if (!s || s.length !== 8) return '—';
+  return s.substring(6,8) + '/' + s.substring(4,6) + '/' + s.substring(0,4);
+}
+function ageFrom(s) {
+  if (!s || s.length !== 8) return null;
+  var y = parseInt(s.substring(0,4)), m = parseInt(s.substring(4,6)), d = parseInt(s.substring(6,8));
+  if (!y || !m || !d) return null;
+  var now = new Date();
+  var age = now.getFullYear() - y;
+  if (now.getMonth()+1 < m || (now.getMonth()+1 === m && now.getDate() < d)) age--;
+  return age;
+}
+var PATHO_LABELS = {
+  ASTHME:'Asthme', HYPERTENSION:'Hypertension', DIABETE:'Diabète', EPILEPSIE:'Épilepsie',
+  AFF_CARDIA:'Affection cardiaque', AFF_CUT:'Affection cutanée', RHUMATO:'Rhumatologie',
+  HAND:'Handicap', HAN_P:'Handicap permanent', HAN_MP:'Handicap moteur/physique'
+};
+
+function openParticipant(idx) {
+  var rando = getActiveRando();
+  if (!rando) return;
+  var idents = loadParticipantsIdent(rando.id);
+  if (!idents || !idents[idx]) return;
+  var p = idents[idx];
+  document.getElementById('presence-content').style.display = 'none';
+  document.getElementById('presence-detail').style.display = 'block';
+  var body = document.getElementById('presence-detail-body');
+
+  /* 1) identité + option : immédiat (déjà en clair) */
+  var age = ageFrom(p.DT_NAIS);
+  var html = '';
+  html += '<h2 style="font-size:19px; font-weight:normal; margin:4px 0 2px; color:var(--text)">' + escapeHtml(p.NOM||'') + ' ' + escapeHtml(p.PRENOM||'') + '</h2>';
+  html += '<div style="font-size:13px; color:var(--text2); margin-bottom:14px">';
+  html += 'Né(e) le ' + fmtDateNais(p.DT_NAIS) + (age!==null ? ' · ' + age + ' ans' : '');
+  if (p.TEL) html += ' · <a href="tel:'+escapeHtml(p.TEL)+'" style="color:var(--green); text-decoration:none">'+escapeHtml(p.TEL)+'</a>';
+  if (p.MAIL) html += '<br>' + escapeHtml(p.MAIL);
+  html += '</div>';
+  var optNb = parseInt(p.PART_OPT_NB) || 0;
+  if (optNb > 0) {
+    html += '<div style="background:var(--amber-light); border:1px solid var(--amber); border-radius:8px; padding:10px 12px; margin-bottom:14px">';
+    html += '<div style="font-size:12px; color:var(--amber); font-weight:bold; text-transform:uppercase; letter-spacing:.05em; margin-bottom:3px">Option réservée (' + optNb + ')</div>';
+    html += '<div style="font-size:14px; color:var(--text)">' + (p.PART_OPT_COM ? escapeHtml(p.PART_OPT_COM) : 'Sans précision') + '</div>';
+    html += '</div>';
+  }
+  /* zone médicale : placeholder le temps du déchiffrement */
+  html += '<div id="detail-medical"><div style="color:var(--text3); font-size:13px; padding:12px 0">Déchiffrement de la fiche médicale…</div></div>';
+  body.innerHTML = html;
+  body.parentNode.scrollTop = 0;
+
+  /* 2) médical : asynchrone */
+  medDbGet('medical', rando.id).then(function(blob) {
+    if (!blob) { renderMedicalBlock(null, p.IDPARTICIPANT, 'absent'); return; }
+    return decryptObj(blob).then(function(payload) {
+      var med = (payload && payload.med) ? payload.med[p.IDPARTICIPANT] : null;
+      renderMedicalBlock(med, p.IDPARTICIPANT, 'ok');
+    });
+  }).catch(function() {
+    renderMedicalBlock(null, p.IDPARTICIPANT, 'error');
+  });
+}
+
+function renderMedicalBlock(med, pid, status) {
+  var el = document.getElementById('detail-medical');
+  if (!el) return;  /* l'utilisateur a pu revenir à la liste entre-temps */
+  if (status === 'error') {
+    el.innerHTML = '<div style="background:#fdeaea; border:1px solid #c0392b; border-radius:8px; padding:12px; color:#c0392b; font-size:13px">Impossible de déchiffrer la fiche médicale sur cet appareil.</div>';
+    return;
+  }
+  if (status === 'absent') {
+    el.innerHTML = '<div style="background:var(--amber-light); border:1px solid var(--amber); border-radius:8px; padding:12px; color:var(--amber); font-size:13px">Aucune donnée médicale chargée pour cette sortie.</div>';
+    return;
+  }
+  /* RÈGLE null ≠ false : bloc médical null = fiche NON renseignée */
+  var isNull = !med || med.NO_PATHO === null && med.ASTHME === null && med.EPILEPSIE === null && med.CONT_URGENCE === null;
+  var html = '<div style="border-top:2px solid var(--green-dark); margin-top:6px; padding-top:12px"><div style="font-size:13px; color:var(--text3); text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px">Fiche médicale</div>';
+  if (isNull) {
+    html += '<div style="background:var(--amber-light); border:1px solid var(--amber); border-radius:8px; padding:12px; color:var(--amber); font-size:14px; font-weight:bold">⚠️ Fiche médicale non renseignée</div>';
+    html += '</div>';
+    el.innerHTML = html;
+    return;
+  }
+  /* contacts */
+  html += medLine('Contact d\'urgence', med.CONT_URGENCE);
+  html += medLine('Médecin traitant', med.MED_TRAITANT);
+  /* pathologies à true */
+  var pathos = [];
+  for (var k in PATHO_LABELS) { if (med[k] === true) pathos.push(PATHO_LABELS[k]); }
+  html += '<div style="margin:10px 0 4px; font-size:13px"><span style="color:var(--text2)">Pathologies : </span>';
+  if (med.NO_PATHO === true && pathos.length === 0) html += '<span style="color:var(--text)">aucune déclarée</span>';
+  else if (pathos.length) html += '<span style="color:var(--text); font-weight:bold">' + pathos.join(', ') + '</span>';
+  else html += '<span style="color:var(--text)">aucune déclarée</span>';
+  html += '</div>';
+  html += medLine('Précisions / conséquences', med.HAN_CONS);
+  html += medLine('Affections autres', med.AFF_AUTRES);
+  html += medLine('Allergie alimentaire', med.ALL_ALI, 'aucune');
+  html += medLine('Intolérance alimentaire', med.INTO_ALI, 'aucune');
+  if (med.SOINS_MED === true) {
+    html += medLine('Soins médicaux', 'Oui — autonome : ' + (med.SOINS_MED_AUTO === true ? 'oui' : 'non'));
+    html += medLine('Description soins', med.SOINS_MED_DESC);
+  }
+  html += medLine('Autres infos médicales', med.AUTRES_INFO_MED);
+  /* PART_COMMENTS toujours affiché (doc §6) */
+  html += medLine('Commentaires (inscription)', med.PART_COMMENTS);
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function medLine(label, value, emptyWord) {
+  var v = (value === null || value === undefined || value === '') ? (emptyWord || '—') : value;
+  return '<div style="margin:6px 0; font-size:13px"><span style="color:var(--text2)">' + label + ' : </span><span style="color:var(--text)">' + escapeHtml(v) + '</span></div>';
+}
+
+function closeParticipant() {
+  document.getElementById('presence-detail').style.display = 'none';
+  document.getElementById('presence-detail-body').innerHTML = '';  /* on ne garde pas le médical déchiffré en DOM */
+  document.getElementById('presence-content').style.display = 'block';
 }
 
 document.querySelectorAll('.modal-overlay').forEach(function(m){
