@@ -1,4 +1,4 @@
-var CACHE = 'odm-v4';
+var CACHE = 'odm-v5';
 var URLS = [
   '/ODM/',
   '/ODM/index.html',
